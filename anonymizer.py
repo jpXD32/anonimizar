@@ -438,7 +438,7 @@ class DataAnonymizer:
             'isabel', 'cecilia', 'alejandra', 'diana', 'ángela', 'angela', 'ámbar', 'ambar',
             'sonia', 'luciana', 'rosa', 'carmen', 'yolanda', 'gloria', 'rosario', 'inés', 'ines',
             'silvia', 'claudia', 'alicia', 'vera', 'noelia', 'natalia', 'susana', 'estela',
-            'teresa', 'begoña', 'begonia', 'esmeralda', 'elisa', 'magdalena', 'jimena',
+            'verónica', 'veronica', 'teresa', 'begoña', 'begonia', 'esmeralda', 'elisa', 'magdalena', 'jimena',
             'irene', 'belén', 'belen', 'mariana', 'milagros', 'felicidad', 'esperanza',
             'dolores', 'patricia', 'gracia', 'fabiola', 'consuelo', 'josefina', 'pilar',
             'lorenza', 'marcela', 'tamara', 'rebeca', 'mercedes', 'guadalupe', 'paloma',
@@ -462,8 +462,11 @@ class DataAnonymizer:
             'yago', 'yahir', 'zacarías', 'zacarias', 'baltasar', 'casimiro',
             'demetrio', 'edmundo',
             # Apellidos comunes chilenos - Top 100 según Registro Civil Chile
+            # Incluye variantes con/sin acentos (para detectar apellidos solos)
             # Fuente: Wikipedia + CNN Chile + Psicología y Mente
-            'barría', 'barria', 'gonzalez', 'muñoz', 'rojas', 'diaz', 'perez', 'soto', 'contreras',
+            'barría', 'barria', 'pérez', 'perez', 'garcía', 'garcia', 'hernández', 'hernandez',
+            'martínez', 'martinez', 'bascuñán', 'bascunan', 'pía', 'pia',
+            'gonzalez', 'muñoz', 'rojas', 'diaz', 'soto', 'contreras',
             'silva', 'martinez', 'sepulveda', 'morales', 'rodriguez', 'lopez',
             'fuentes', 'hernandez', 'torres', 'araya', 'flores', 'espinoza',
             'valenzuela', 'castillo', 'tapia', 'reyes', 'gutierrez', 'castro',

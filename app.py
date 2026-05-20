@@ -5,6 +5,9 @@ from pathlib import Path
 from anonymizer import DataAnonymizer, anonymize_file
 import io
 import tempfile
+import os
+import signal
+import sys
 
 st.set_page_config(
     page_title="Anonimizador de Datos",
@@ -12,6 +15,17 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Inicializar estado de sesión
+if 'shutdown_requested' not in st.session_state:
+    st.session_state.shutdown_requested = False
+
+# Si se solicita apagar, mostrar mensaje y salir
+if st.session_state.shutdown_requested:
+    st.info("✅ Servidor detenido. Puedes cerrar esta ventana.")
+    import time
+    time.sleep(2)
+    st.stop()
 
 # CSS personalizado para mejor diseño
 st.markdown("""
@@ -265,8 +279,25 @@ with st.sidebar:
 
     st.divider()
 
+    # Botón para detener servidor
+    st.markdown("<h4 style='color: #667eea; margin-top: 2rem;'>🛑 Administración del Servidor</h4>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("🛑 Detener Servidor", type="secondary", use_container_width=True, help="Cierra la aplicación"):
+            st.warning("⏳ Deteniendo servidor en 2 segundos...")
+            st.session_state.shutdown_requested = True
+
+    with col2:
+        if st.button("🔄 Limpiar Sesión", type="secondary", use_container_width=True, help="Reinicia la sesión"):
+            # Limpiar sesión
+            st.session_state.clear()
+            st.success("✅ Sesión limpiada")
+            st.rerun()
+
     st.markdown("""
-    <div style="text-align: center; color: #999; font-size: 0.8rem;">
+    <div style="text-align: center; color: #999; font-size: 0.8rem; margin-top: 1.5rem;">
         <p>🔐 Anonimizador v1.0<br>Con tecnología NLP (spaCy)</p>
     </div>
     """, unsafe_allow_html=True)
