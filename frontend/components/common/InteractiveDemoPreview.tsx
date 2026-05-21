@@ -74,13 +74,22 @@ export function InteractiveDemoPreview() {
         <div className="space-y-6">
           {/* Status */}
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                {isProcessing ? '⏳ Procesando archivo...' : '✅ Completado'}
-              </p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                {Math.min(Math.round(progress), 100)}%
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center">
+                {isProcessing ? (
+                  <div className="text-2xl">⏳</div>
+                ) : (
+                  <div className="text-2xl">✅</div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                  {isProcessing ? 'Procesando archivo...' : 'Completado'}
+                </p>
+                <p className="text-3xl font-black text-slate-900 dark:text-white mt-0.5">
+                  {Math.min(Math.round(progress), 100)}%
+                </p>
+              </div>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500 dark:text-slate-400">Anonimizando datos</p>
@@ -91,37 +100,44 @@ export function InteractiveDemoPreview() {
           </div>
 
           {/* Progress Bar */}
-          <div className="h-2 bg-gradient-to-r from-slate-200 to-slate-100 dark:from-slate-800 dark:to-slate-700 rounded-full overflow-hidden">
+          <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-6 mb-2">
             <div
-              className="h-full bg-gradient-to-r from-primary-500 to-accent-600 rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-primary-500 via-primary-600 to-accent-600 rounded-full transition-all duration-500 shadow-lg shadow-primary-500/30"
               style={{ width: `${Math.min(progress, 100)}%` }}
             />
           </div>
 
           {/* Stats Grid - Live Updates */}
-          <div className="grid grid-cols-2 gap-3 pt-4">
+          <div className="grid grid-cols-2 gap-4 pt-6">
             {[
-              { label: 'Personas', value: stats.persons, icon: '👤' },
-              { label: 'Ubicaciones', value: stats.locations, icon: '📍' },
-              { label: 'RUTs', value: stats.ruts, icon: '🆔' },
-              { label: 'Emails', value: stats.emails, icon: '📧' },
+              { label: 'Personas', value: stats.persons, icon: '👤', color: 'text-purple-600 dark:text-purple-400' },
+              { label: 'Ubicaciones', value: stats.locations, icon: '📍', color: 'text-pink-600 dark:text-pink-400' },
+              { label: 'RUTs', value: stats.ruts, icon: '🆔', color: 'text-indigo-600 dark:text-indigo-400' },
+              { label: 'Emails', value: stats.emails, icon: '📧', color: 'text-blue-600 dark:text-blue-400' },
             ].map((stat, i) => (
               <div
                 key={stat.label}
-                className="p-3 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/50 dark:to-slate-900/50 border border-slate-200/50 dark:border-slate-700/50"
+                className="p-4 rounded-lg bg-white/50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm"
               >
-                <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold">
-                  {stat.icon} {stat.label}
-                </p>
-                <p className="text-lg font-black text-slate-900 dark:text-white mt-1">
-                  {stat.value}
-                </p>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 font-medium uppercase tracking-wide">
+                      {stat.label}
+                    </p>
+                    <p className={`text-2xl font-black mt-2 ${stat.color}`}>
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                      Registros procesados
+                    </p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
 
           {/* Action Button */}
-          <button className="w-full py-2.5 mt-4 rounded-lg bg-gradient-to-r from-primary-500 to-accent-600 text-white font-semibold text-sm hover:shadow-lg hover:shadow-primary-500/30 transition-all duration-300">
+          <button className="w-full py-3.5 mt-6 rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white font-bold text-base hover:shadow-xl hover:shadow-primary-500/40 active:scale-95 transition-all duration-300">
             {isProcessing ? '⏸ Pausar' : '📥 Descargar Resultados'}
           </button>
         </div>
