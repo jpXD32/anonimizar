@@ -1,89 +1,17 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
 import { AnimatedCanvas } from '@/components/common/AnimatedCanvas'
 import { DemoVideo } from '@/components/common/DemoVideo'
 import { ParallaxSection } from '@/components/common/ParallaxSection'
-import { AnimatedCounter } from '@/components/common/AnimatedCounter'
-import { PerspectiveCard } from '@/components/common/PerspectiveCard'
 import { FadeInSection } from '@/components/common/FadeInSection'
-import { GradientBorder } from '@/components/common/GradientBorder'
 import { InteractiveDemoPreview } from '@/components/common/InteractiveDemoPreview'
-import {
-  Shield,
-  Lock,
-  Zap,
-  Database,
-  Brain,
-  CheckCircle2,
-  ArrowRight,
-  Globe,
-  Sparkles,
-  TrendingUp,
-  Users,
-  Award,
-  Code2,
-  Cpu
-} from 'lucide-react'
+import { Lock, Shield, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react'
 
 export default function Home() {
-  const [hoveredFeature, setHoveredFeature] = useState<number | null>(null)
-
-  const features = [
-    {
-      icon: Lock,
-      title: '100% Local',
-      subtitle: 'Zero Cloud',
-      description: 'Procesamiento completamente local sin conexión externa',
-      color: 'from-blue-500 via-cyan-500 to-teal-500',
-      gradient: 'from-blue-50 to-cyan-50 dark:from-blue-900/10 dark:to-cyan-900/10'
-    },
-    {
-      icon: Brain,
-      title: 'NLP Inteligente',
-      subtitle: 'AI-Powered',
-      description: 'Detección automática con tecnología avanzada',
-      color: 'from-purple-500 via-pink-500 to-rose-500',
-      gradient: 'from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10'
-    },
-    {
-      icon: Zap,
-      title: 'Ultra Rápido',
-      subtitle: 'Lightning Speed',
-      description: 'Procesa archivos masivos en segundos',
-      color: 'from-amber-500 via-orange-500 to-red-500',
-      gradient: 'from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10'
-    },
-    {
-      icon: Database,
-      title: 'Multi-Formato',
-      subtitle: 'Any Format',
-      description: 'CSV, Excel, XLSX y más formatos',
-      color: 'from-green-500 via-emerald-500 to-teal-500',
-      gradient: 'from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10'
-    },
-    {
-      icon: Shield,
-      title: 'Consistente',
-      subtitle: 'Reliable',
-      description: 'Datos se reemplazan consistentemente',
-      color: 'from-red-500 via-rose-500 to-pink-500',
-      gradient: 'from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10'
-    },
-    {
-      icon: Globe,
-      title: 'Sin Conexión',
-      subtitle: 'Offline First',
-      description: 'Funciona sin internet en cualquier lugar',
-      color: 'from-teal-500 via-cyan-500 to-blue-500',
-      gradient: 'from-teal-50 to-cyan-50 dark:from-teal-900/10 dark:to-cyan-900/10'
-    },
-  ]
-
   return (
     <>
       <Header />
@@ -187,86 +115,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-
-{/* Features - God Tier Grid */}
-        <FadeInSection>
-          <section className="relative py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50">
-            <div className="absolute inset-0 -z-10 overflow-hidden">
-              {/* Feature section background orbs */}
-              <div className="absolute top-1/4 -right-64 w-96 h-96 bg-accent-400/10 rounded-full blur-3xl" />
-              <div className="absolute bottom-1/4 -left-64 w-96 h-96 bg-primary-400/10 rounded-full blur-3xl" />
-            </div>
-
-            <ParallaxSection offset={0.2}>
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center space-y-6 mb-12">
-                <h2 className="text-6xl sm:text-7xl font-black tracking-tight">
-                  <span className="block text-slate-900 dark:text-white">Características</span>
-                  <span className="block bg-gradient-to-r from-primary-600 via-accent-600 to-primary-700 bg-clip-text text-transparent">Extraordinarias</span>
-                </h2>
-                <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-light">
-                  Potencia profesional con simplicidad elegante
-                </p>
-              </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {features.map((feature, i) => {
-                const Icon = feature.icon
-                const isHovered = hoveredFeature === i
-                return (
-                  <PerspectiveCard key={i} className="group relative">
-                    <div
-                      onMouseEnter={() => setHoveredFeature(i)}
-                      onMouseLeave={() => setHoveredFeature(null)}
-                      className="group relative h-full"
-                    >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-20 rounded-2xl blur-xl transition-all duration-500`} />
-                    <div className={`relative p-8 rounded-2xl border transition-all duration-300 ${
-                      isHovered
-                        ? 'bg-white dark:bg-slate-800 border-primary-300 dark:border-primary-700 shadow-2xl'
-                        : 'bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-800/50 hover:bg-white dark:hover:bg-slate-800'
-                    }`}>
-                      <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 ${
-                        isHovered
-                          ? `bg-gradient-to-br ${feature.color} text-white shadow-lg shadow-${feature.color.split('-')[1]}-500/40`
-                          : `bg-gradient-to-br ${feature.gradient}`
-                      }`}>
-                        <Icon className={`w-8 h-8 ${!isHovered && 'text-primary-600 dark:text-primary-400'}`} />
-                      </div>
-
-                      <div className="space-y-3">
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900 dark:text-white">{feature.title}</h3>
-                          <p className={`text-xs font-semibold transition-colors ${
-                            isHovered
-                              ? 'bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent'
-                              : 'text-primary-600 dark:text-primary-400'
-                          }`}>
-                            {feature.subtitle}
-                          </p>
-                        </div>
-                        <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                          {feature.description}
-                        </p>
-                      </div>
-
-                      <div className={`mt-4 h-1 rounded-full bg-gradient-to-r from-primary-500/20 to-accent-500/20 overflow-hidden transition-all duration-300 ${
-                        isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}>
-                        <div className={`h-full bg-gradient-to-r ${feature.color} transition-all duration-300 ${
-                          isHovered ? 'w-full' : 'w-0'
-                        }`} />
-                      </div>
-                    </div>
-                    </div>
-                  </PerspectiveCard>
-                )
-              })}
-            </div>
-            </div>
-            </ParallaxSection>
-          </section>
-        </FadeInSection>
 
         {/* Live Demo Section */}
         <FadeInSection delay={200}>
