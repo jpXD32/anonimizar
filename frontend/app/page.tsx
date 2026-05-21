@@ -293,51 +293,6 @@ export default function Home() {
             </ParallaxSection>
           </section>
         </FadeInSection>
-
-        {/* CTA Final - God Tier */}
-        <section className="relative py-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
-          <div className="absolute inset-0 -z-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-700 dark:from-primary-700 dark:via-primary-800 dark:to-accent-700" />
-            <div className="absolute inset-0 opacity-60">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-            </div>
-          </div>
-
-          <div className="max-w-4xl mx-auto relative z-10 text-center space-y-10">
-            <div className="space-y-4">
-              <h2 className="text-5xl sm:text-6xl font-black text-white leading-tight">
-                Listo para Anonimizar?
-              </h2>
-              <p className="text-lg sm:text-xl text-white/90 font-light">
-                Comienza en segundos. Gratis, sin tarjeta de crédito.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-              <Button
-                asLink
-                href="/dashboard"
-                variant="secondary"
-                size="lg"
-                className="text-lg font-semibold h-14 shadow-2xl"
-              >
-                <Sparkles className="w-5 h-5" />
-                Ir Ahora
-              </Button>
-              <Button
-                asLink
-                href="/help"
-                variant="ghost"
-                size="lg"
-                className="text-lg font-semibold text-white h-14 hover:bg-white/20"
-              >
-                Aprender Más
-                <ArrowRight className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
-        </section>
       </main>
 
       <Footer />
