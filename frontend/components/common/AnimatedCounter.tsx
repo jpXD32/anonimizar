@@ -74,10 +74,19 @@ export function AnimatedCounter({
     }
   }, [isInView, value, duration])
 
+  const formatValue = (val: number) => {
+    if (val >= 1000000) {
+      return (val / 1000000).toFixed(0) + 'M'
+    } else if (val >= 1000) {
+      return (val / 1000).toFixed(0) + 'K'
+    }
+    return val.toLocaleString()
+  }
+
   return (
     <div ref={ref} className={className}>
       {prefix}
-      {displayValue.toLocaleString()}
+      {formatValue(displayValue)}
       {suffix}
     </div>
   )
