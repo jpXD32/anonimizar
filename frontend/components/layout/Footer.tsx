@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Github } from 'lucide-react'
+import { Shield, Github, Star } from 'lucide-react'
 
 export function Footer() {
   const currentYear = new Date().getFullYear()
@@ -26,13 +26,21 @@ export function Footer() {
             <h4 className="font-semibold text-slate-900 dark:text-white">Producto</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/dashboard" className="text-slate-600 dark:text-slate-400 hover:text-primary-600 transition-smooth">
+                <Link href="/dashboard" className="text-slate-600 dark:text-slate-400 hover:text-primary-600 transition-smooth flex items-center gap-2">
                   Dashboard
+                  <span className="text-xs text-slate-400">→</span>
                 </Link>
               </li>
               <li>
-                <Link href="/help" className="text-slate-600 dark:text-slate-400 hover:text-primary-600 transition-smooth">
+                <Link href="/docs" className="text-slate-600 dark:text-slate-400 hover:text-primary-600 transition-smooth flex items-center gap-2">
                   Documentación
+                  <span className="text-xs text-slate-400">→</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/api" className="text-slate-600 dark:text-slate-400 hover:text-primary-600 transition-smooth flex items-center gap-2">
+                  API Reference
+                  <span className="text-xs text-slate-400">→</span>
                 </Link>
               </li>
             </ul>
@@ -60,15 +68,25 @@ export function Footer() {
           {/* Social */}
           <div className="space-y-3">
             <h4 className="font-semibold text-slate-900 dark:text-white">Comunidad</h4>
-            <div className="flex items-center gap-3">
+            <div className="space-y-3">
               <a
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 bg-slate-200 dark:bg-slate-800 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-700 transition-smooth"
-                aria-label="GitHub"
+                className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-primary-600 transition-smooth"
               >
                 <Github className="w-5 h-5" />
+                GitHub
+              </a>
+              <a
+                href="https://github.com/stars"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-primary-600 transition-smooth"
+              >
+                <Star className="w-4 h-4" />
+                Star en GitHub
+                <span className="text-xs bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">2.5k</span>
               </a>
             </div>
           </div>

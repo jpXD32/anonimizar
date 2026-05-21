@@ -39,6 +39,13 @@ export function Header() {
               Ayuda
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-600 to-accent-600 group-hover:w-full transition-all" />
             </Link>
+            <Link href="/docs" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors relative group">
+              Documentación
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-600 to-accent-600 group-hover:w-full transition-all" />
+            </Link>
+            <div className="px-2.5 py-1 rounded-full bg-accent-600 text-white text-xs font-black uppercase tracking-wider">
+              Nuevo
+            </div>
           </nav>
 
           {/* Theme Toggle & CTA */}
