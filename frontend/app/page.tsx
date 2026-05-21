@@ -1,10 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent } from '@/components/ui/Card'
 import {
   Shield,
   Lock,
@@ -17,168 +17,205 @@ import {
   Sparkles,
   TrendingUp,
   Users,
-  Award
+  Award,
+  Code2,
+  Cpu
 } from 'lucide-react'
 
 export default function Home() {
+  const [hoveredFeature, setHoveredFeature] = useState<number | null>(null)
+
   const features = [
     {
       icon: Lock,
-      title: '🔒 100% Local',
-      description: 'Tu información nunca sale de tu computadora. Procesamiento completamente local sin conexión a nube.',
-      color: 'from-blue-500 to-cyan-500'
+      title: '100% Local',
+      subtitle: 'Zero Cloud',
+      description: 'Procesamiento completamente local sin conexión externa',
+      color: 'from-blue-500 via-cyan-500 to-teal-500',
+      gradient: 'from-blue-50 to-cyan-50 dark:from-blue-900/10 dark:to-cyan-900/10'
     },
     {
       icon: Brain,
-      title: '🧠 NLP Inteligente',
-      description: 'Detección automática de datos sensibles usando tecnología de procesamiento de lenguaje natural.',
-      color: 'from-purple-500 to-pink-500'
+      title: 'NLP Inteligente',
+      subtitle: 'AI-Powered',
+      description: 'Detección automática con tecnología avanzada',
+      color: 'from-purple-500 via-pink-500 to-rose-500',
+      gradient: 'from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10'
     },
     {
       icon: Zap,
-      title: '⚡ Súper Rápido',
-      description: 'Procesa archivos grandes en segundos. Optimizado para máximo rendimiento.',
-      color: 'from-amber-500 to-orange-500'
+      title: 'Ultra Rápido',
+      subtitle: 'Lightning Speed',
+      description: 'Procesa archivos masivos en segundos',
+      color: 'from-amber-500 via-orange-500 to-red-500',
+      gradient: 'from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10'
     },
     {
       icon: Database,
-      title: '📊 Multi-formato',
-      description: 'Soporta CSV, Excel, XLSX y más. Importa y exporta en cualquier formato.',
-      color: 'from-green-500 to-emerald-500'
+      title: 'Multi-Formato',
+      subtitle: 'Any Format',
+      description: 'CSV, Excel, XLSX y más formatos',
+      color: 'from-green-500 via-emerald-500 to-teal-500',
+      gradient: 'from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10'
     },
     {
       icon: Shield,
-      title: '🛡️ Consistente',
-      description: 'Los mismos datos se reemplazan con los mismos valores en todo el archivo.',
-      color: 'from-red-500 to-rose-500'
+      title: 'Consistente',
+      subtitle: 'Reliable',
+      description: 'Datos se reemplazan consistentemente',
+      color: 'from-red-500 via-rose-500 to-pink-500',
+      gradient: 'from-red-50 to-rose-50 dark:from-red-900/10 dark:to-rose-900/10'
     },
     {
       icon: Globe,
-      title: '🌐 Sin Conexión',
-      description: 'Funciona completamente sin internet. Ideal para entornos segmentados.',
-      color: 'from-teal-500 to-blue-500'
+      title: 'Sin Conexión',
+      subtitle: 'Offline First',
+      description: 'Funciona sin internet en cualquier lugar',
+      color: 'from-teal-500 via-cyan-500 to-blue-500',
+      gradient: 'from-teal-50 to-cyan-50 dark:from-teal-900/10 dark:to-cyan-900/10'
     },
   ]
 
   const stats = [
-    { label: 'Datos Procesados', value: '100M+', icon: TrendingUp },
-    { label: 'Usuarios Activos', value: '50K+', icon: Users },
-    { label: 'Archivos', value: '1M+', icon: Database },
-    { label: 'Confiabilidad', value: '99.9%', icon: Award },
+    { value: '100M+', label: 'Registros Procesados', change: '+150%' },
+    { value: '50K+', label: 'Usuarios Confiables', change: '+200%' },
+    { value: '1M+', label: 'Archivos Anonimizados', change: '+180%' },
+    { value: '99.9%', label: 'Uptime & Reliability', change: '+5%' },
   ]
 
   return (
     <>
       <Header />
       <main className="overflow-hidden">
-        {/* Hero Section - Premium */}
-        <section className="relative pt-40 pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
-          {/* Animated Background */}
-          <div className="absolute inset-0 -z-10">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-primary-400/20 to-transparent rounded-full blur-3xl animate-pulse" />
-            <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-accent-400/20 to-transparent rounded-full blur-3xl animate-pulse animation-delay-2000" />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/50 to-transparent dark:from-slate-950/50 dark:to-transparent" />
+        {/* Hero - God Tier */}
+        <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-20 pb-32 overflow-hidden">
+          {/* Premium Animated Background */}
+          <div className="absolute inset-0 -z-10 overflow-hidden">
+            {/* Animated Orbs */}
+            <div className="absolute top-20 -right-40 w-96 h-96 bg-gradient-to-br from-primary-400/30 to-transparent rounded-full blur-3xl animate-pulse" />
+            <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-accent-400/30 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+            <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-gradient-to-br from-purple-400/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+
+            {/* Grid Pattern */}
+            <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.1]" style={{
+              backgroundImage: `linear-gradient(0deg, transparent 24%, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.1) 26%, transparent 27%, transparent 74%, rgba(99, 102, 241, 0.1) 75%, rgba(99, 102, 241, 0.1) 76%, transparent 77%, transparent),
+                              linear-gradient(90deg, transparent 24%, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.1) 26%, transparent 27%, transparent 74%, rgba(99, 102, 241, 0.1) 75%, rgba(99, 102, 241, 0.1) 76%, transparent 77%, transparent)`,
+              backgroundSize: '50px 50px'
+            }} />
           </div>
 
-          <div className="max-w-7xl mx-auto relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              {/* Left Content */}
-              <div className="space-y-10 animate-fade-in">
+          <div className="max-w-7xl mx-auto relative z-10 w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+              {/* Content */}
+              <div className="space-y-12">
                 {/* Badge */}
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-100 to-accent-100 dark:from-primary-900/30 dark:to-accent-900/30 text-primary-700 dark:text-primary-300 rounded-full text-sm font-semibold border border-primary-200 dark:border-primary-800">
-                  <Sparkles className="w-4 h-4" />
-                  Versión 1.0 - Disponible Ahora
+                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-primary-200 dark:border-primary-800 bg-gradient-to-r from-primary-100/80 to-accent-100/80 dark:from-primary-900/20 dark:to-accent-900/20 backdrop-blur-md hover:shadow-lg transition-all duration-300">
+                  <div className="w-2 h-2 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 animate-pulse" />
+                  <span className="text-sm font-semibold bg-gradient-to-r from-primary-600 to-accent-600 dark:from-primary-300 dark:to-accent-300 bg-clip-text text-transparent">
+                    Versión 1.0 - Now Available
+                  </span>
                 </div>
 
-                {/* Heading */}
-                <div className="space-y-6">
-                  <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black leading-tight">
-                    <span className="block gradient-text">
-                      Protege tus
+                {/* Main Heading */}
+                <div className="space-y-8">
+                  <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black leading-[1.1] tracking-tight">
+                    <span className="block h-fit">
+                      <span className="inline-block bg-gradient-to-r from-primary-600 via-primary-700 via-accent-600 to-primary-800 bg-size-200 bg-pos-0 hover:bg-pos-100 transition-all duration-1000 bg-clip-text text-transparent">
+                        Protege
+                      </span>
                     </span>
-                    <span className="block text-slate-900 dark:text-white">
-                      Datos 100% Local
+                    <span className="block h-fit text-slate-900 dark:text-white">
+                      tus Datos
+                    </span>
+                    <span className="block h-fit">
+                      <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-slate-400 via-slate-600 to-slate-400 dark:from-slate-400 dark:via-slate-300 dark:to-slate-400">
+                        100% Local
+                      </span>
                     </span>
                   </h1>
 
-                  <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-lg">
-                    Anonimiza información sensible de forma segura, rápida y sin enviar datos a la nube. Tecnología NLP inteligente para máxima privacidad.
+                  <p className="text-xl sm:text-2xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-lg font-light">
+                    Anonimiza información confidencial sin dejar tu computadora. Tecnología de punta con privacidad absoluta.
                   </p>
                 </div>
 
                 {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                <div className="flex flex-col sm:flex-row gap-4 pt-8">
                   <Button
                     asLink
                     href="/dashboard"
                     variant="primary"
                     size="lg"
-                    className="group text-lg"
+                    className="group h-14 text-lg font-semibold shadow-xl shadow-primary-500/25 hover:shadow-2xl hover:shadow-primary-500/40 transition-all"
                   >
                     <Sparkles className="w-5 h-5" />
                     Comenzar Ahora
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </Button>
                   <Button
                     asLink
                     href="/help"
                     variant="outline"
                     size="lg"
-                    className="text-lg"
+                    className="h-14 text-lg font-semibold hover:bg-slate-100 dark:hover:bg-slate-800/50"
                   >
-                    Ver Documentación
+                    Ver Demo
                   </Button>
                 </div>
 
-                {/* Trust Badges */}
-                <div className="flex flex-wrap gap-6 pt-8 border-t border-slate-200 dark:border-slate-800">
+                {/* Trust Items */}
+                <div className="flex flex-wrap gap-8 pt-8 border-t border-slate-200 dark:border-slate-800">
                   {[
-                    { icon: Lock, text: 'Totalmente Privado', color: 'text-emerald-600' },
-                    { icon: Shield, text: 'Sin Cloud', color: 'text-blue-600' },
-                    { icon: CheckCircle2, text: 'Open Source', color: 'text-purple-600' },
-                  ].map((badge, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg bg-slate-100 dark:bg-slate-800`}>
-                        <badge.icon className={`w-5 h-5 ${badge.color}`} />
+                    { icon: Lock, text: 'Totalmente Privado' },
+                    { icon: Shield, text: 'Sin Cloud' },
+                    { icon: CheckCircle2, text: 'Open Source' },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 group cursor-pointer">
+                      <div className="p-2.5 rounded-lg bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 group-hover:shadow-lg transition-all">
+                        <item.icon className="w-5 h-5 text-primary-600 dark:text-primary-400" />
                       </div>
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                        {badge.text}
-                      </span>
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{item.text}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Right Visual - Premium Mockup */}
+              {/* Right Side - Premium Showcase */}
               <div className="relative hidden lg:block">
-                <div className="absolute -inset-4 bg-gradient-to-r from-primary-500/20 to-accent-500/20 rounded-3xl blur-2xl" />
-                <div className="relative bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 rounded-3xl border border-slate-700/50 p-8 shadow-2xl card-glow">
-                  {/* Window Header */}
-                  <div className="flex items-center gap-2 mb-6">
-                    <div className="w-3 h-3 rounded-full bg-red-500" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                    <div className="w-3 h-3 rounded-full bg-green-500" />
-                    <div className="flex-1 text-center text-xs text-slate-400">localhost:3000</div>
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-accent-500/10 rounded-3xl blur-2xl" />
+                <div className="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-800/50 p-8 shadow-2xl">
+                  {/* Browser Bar */}
+                  <div className="flex items-center gap-2 mb-8 pb-6 border-b border-slate-200 dark:border-slate-800">
+                    <div className="flex gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-400" />
+                      <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                      <div className="w-3 h-3 rounded-full bg-green-400" />
+                    </div>
+                    <div className="flex-1 px-4 py-1.5 mx-2 rounded-md bg-slate-100 dark:bg-slate-800 text-xs text-slate-500">
+                      localhost:3000/dashboard
+                    </div>
                   </div>
 
-                  {/* Content */}
+                  {/* Content Preview */}
                   <div className="space-y-4">
-                    <div className="h-8 bg-gradient-to-r from-primary-600 to-accent-600 rounded-lg w-2/3" />
-                    <div className="h-3 bg-slate-700 rounded-full w-full" />
-                    <div className="h-3 bg-slate-700 rounded-full w-4/5" />
-                    <div className="space-y-3 pt-6">
-                      <div className="h-10 bg-slate-800 rounded-lg flex items-center px-3">
-                        <div className="w-5 h-5 bg-slate-700 rounded mr-3" />
-                        <div className="h-2 bg-slate-700 rounded w-32" />
-                      </div>
-                      <div className="h-10 bg-slate-800/50 rounded-lg flex items-center px-3">
-                        <div className="w-5 h-5 bg-slate-700 rounded mr-3" />
-                        <div className="h-2 bg-slate-700 rounded w-24" />
-                      </div>
+                    <div className="h-3 rounded-full w-2/3 bg-gradient-to-r from-primary-400 to-accent-400" />
+                    <div className="h-3 rounded-full w-3/4 bg-slate-200 dark:bg-slate-800" />
+
+                    <div className="space-y-3 pt-8">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex gap-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-400 to-accent-400 opacity-20" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-2 bg-slate-300 dark:bg-slate-700 rounded-full w-24" />
+                            <div className="h-2 bg-slate-200 dark:bg-slate-800 rounded-full w-32" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="pt-6 border-t border-slate-700/50 flex gap-2">
-                      <div className="h-8 bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg flex-1" />
-                      <div className="h-8 bg-slate-700 rounded-lg flex-1" />
+
+                    <div className="pt-6 grid grid-cols-2 gap-3">
+                      <div className="h-10 rounded-lg bg-gradient-to-r from-primary-500 to-accent-500" />
+                      <div className="h-10 rounded-lg bg-slate-200 dark:bg-slate-800" />
                     </div>
                   </div>
                 </div>
@@ -188,23 +225,95 @@ export default function Home() {
         </section>
 
         {/* Stats Section - Premium */}
-        <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border-y border-slate-200 dark:border-slate-800">
+        <section className="relative py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-transparent via-slate-50/50 to-slate-100 dark:via-slate-900/20 dark:to-slate-900/40">
           <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              {stats.map((stat, i) => {
-                const StatIcon = stat.icon
-                return (
-                  <div key={i} className="text-center space-y-4">
-                    <div className="flex justify-center">
-                      <div className="p-3 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
-                        <StatIcon className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {stats.map((stat, i) => (
+                <div key={i} className="group relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-accent-500/5 rounded-2xl group-hover:from-primary-500/10 group-hover:to-accent-500/10 transition-all duration-300" />
+                  <div className="relative p-8 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:border-primary-200 dark:hover:border-primary-800 transition-all">
+                    <div className="flex items-end justify-between mb-6">
+                      <div>
+                        <div className="text-5xl sm:text-6xl font-black bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">
+                          {stat.value}
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{stat.label}</p>
+                      </div>
+                      <div className="px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-semibold">
+                        {stat.change}
                       </div>
                     </div>
-                    <div>
-                      <p className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">
-                        {stat.value}
-                      </p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{stat.label}</p>
+                    <div className="h-1 w-full bg-gradient-to-r from-primary-500/20 to-accent-500/20 rounded-full overflow-hidden">
+                      <div className="h-full w-3/4 bg-gradient-to-r from-primary-500 to-accent-500" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Features - God Tier Grid */}
+        <section className="relative py-32 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center space-y-6 mb-24">
+              <h2 className="text-6xl sm:text-7xl font-black tracking-tight">
+                <span className="block text-slate-900 dark:text-white">Características</span>
+                <span className="block bg-gradient-to-r from-primary-600 via-accent-600 to-primary-700 bg-clip-text text-transparent">Extraordinarias</span>
+              </h2>
+              <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-light">
+                Potencia profesional con simplicidad elegante
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {features.map((feature, i) => {
+                const Icon = feature.icon
+                const isHovered = hoveredFeature === i
+                return (
+                  <div
+                    key={i}
+                    onMouseEnter={() => setHoveredFeature(i)}
+                    onMouseLeave={() => setHoveredFeature(null)}
+                    className="group relative"
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-20 rounded-2xl blur-xl transition-all duration-500`} />
+                    <div className={`relative p-8 rounded-2xl border transition-all duration-300 ${
+                      isHovered
+                        ? 'bg-white dark:bg-slate-800 border-primary-300 dark:border-primary-700 shadow-2xl'
+                        : 'bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-800/50 hover:bg-white dark:hover:bg-slate-800'
+                    }`}>
+                      <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 ${
+                        isHovered
+                          ? `bg-gradient-to-br ${feature.color} text-white shadow-lg shadow-${feature.color.split('-')[1]}-500/40`
+                          : `bg-gradient-to-br ${feature.gradient}`
+                      }`}>
+                        <Icon className={`w-8 h-8 ${!isHovered && 'text-primary-600 dark:text-primary-400'}`} />
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white">{feature.title}</h3>
+                          <p className={`text-xs font-semibold transition-colors ${
+                            isHovered
+                              ? 'bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent'
+                              : 'text-primary-600 dark:text-primary-400'
+                          }`}>
+                            {feature.subtitle}
+                          </p>
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                          {feature.description}
+                        </p>
+                      </div>
+
+                      <div className={`mt-4 h-1 rounded-full bg-gradient-to-r from-primary-500/20 to-accent-500/20 overflow-hidden transition-all duration-300 ${
+                        isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}>
+                        <div className={`h-full bg-gradient-to-r ${feature.color} transition-all duration-300 ${
+                          isHovered ? 'w-full' : 'w-0'
+                        }`} />
+                      </div>
                     </div>
                   </div>
                 )
@@ -213,90 +322,47 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Features Section - Premium Grid */}
-        <section className="py-32 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
-            {/* Header */}
-            <div className="text-center space-y-6 mb-20">
-              <h2 className="text-5xl sm:text-6xl font-black text-slate-900 dark:text-white leading-tight">
-                ✨ Características <span className="gradient-text">Premium</span>
+        {/* CTA Final - God Tier */}
+        <section className="relative py-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
+          <div className="absolute inset-0 -z-10">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-700 dark:from-primary-700 dark:via-primary-800 dark:to-accent-700" />
+            <div className="absolute inset-0 opacity-60">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+            </div>
+          </div>
+
+          <div className="max-w-4xl mx-auto relative z-10 text-center space-y-10">
+            <div className="space-y-4">
+              <h2 className="text-5xl sm:text-6xl font-black text-white leading-tight">
+                Listo para Anonimizar?
               </h2>
-              <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-                Todo lo que necesitas para anonimizar datos de forma segura, rápida y profesional
+              <p className="text-lg sm:text-xl text-white/90 font-light">
+                Comienza en segundos. Gratis, sin tarjeta de crédito.
               </p>
             </div>
 
-            {/* Features Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {features.map((feature, i) => {
-                const Icon = feature.icon
-                return (
-                  <Card
-                    key={i}
-                    interactive
-                    className="group overflow-hidden"
-                  >
-                    <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity rounded-full blur-2xl -mr-16 -mt-16`} />
-                    <CardHeader>
-                      <div className={`w-14 h-14 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center text-white shadow-lg shadow-${feature.color.split('-')[1]}-500/30`}>
-                        <Icon className="w-7 h-7" />
-                      </div>
-                      <CardTitle className="mt-4 text-xl">{feature.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CardDescription className="text-base">{feature.description}</CardDescription>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* CTA Section - Premium */}
-        <section className="py-32 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-5xl mx-auto">
-            <div className="relative overflow-hidden rounded-3xl p-12 sm:p-16 lg:p-20">
-              {/* Animated Background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-700 dark:from-primary-700 dark:via-primary-800 dark:to-accent-700" />
-              <div className="absolute inset-0 opacity-50">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-              </div>
-
-              <div className="relative z-10 text-center space-y-8">
-                <div className="space-y-4">
-                  <h2 className="text-4xl sm:text-5xl font-black text-white leading-tight">
-                    Listo para Anonimizar
-                  </h2>
-                  <p className="text-lg sm:text-xl text-white/90 max-w-2xl mx-auto">
-                    Comienza ahora mismo. Es rápido, fácil y completamente seguro. Sin tarjeta de crédito requerida.
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-                  <Button
-                    asLink
-                    href="/dashboard"
-                    variant="secondary"
-                    size="lg"
-                    className="text-lg font-semibold shadow-lg"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    Ir al Dashboard
-                  </Button>
-                  <Button
-                    asLink
-                    href="/help"
-                    variant="ghost"
-                    size="lg"
-                    className="text-lg font-semibold text-white hover:bg-white/20"
-                  >
-                    Aprender Más
-                    <ArrowRight className="w-5 h-5" />
-                  </Button>
-                </div>
-              </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+              <Button
+                asLink
+                href="/dashboard"
+                variant="secondary"
+                size="lg"
+                className="text-lg font-semibold h-14 shadow-2xl"
+              >
+                <Sparkles className="w-5 h-5" />
+                Ir Ahora
+              </Button>
+              <Button
+                asLink
+                href="/help"
+                variant="ghost"
+                size="lg"
+                className="text-lg font-semibold text-white h-14 hover:bg-white/20"
+              >
+                Aprender Más
+                <ArrowRight className="w-5 h-5" />
+              </Button>
             </div>
           </div>
         </section>
