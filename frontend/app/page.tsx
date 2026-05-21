@@ -12,6 +12,7 @@ import { AnimatedCounter } from '@/components/common/AnimatedCounter'
 import { PerspectiveCard } from '@/components/common/PerspectiveCard'
 import { FadeInSection } from '@/components/common/FadeInSection'
 import { GradientBorder } from '@/components/common/GradientBorder'
+import { InteractiveDemoPreview } from '@/components/common/InteractiveDemoPreview'
 import {
   Shield,
   Lock,
@@ -188,46 +189,8 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Right Side - Premium Showcase */}
-              <div className="relative hidden lg:block">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-accent-500/10 rounded-3xl blur-2xl" />
-                <div className="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-800/50 p-8 shadow-2xl">
-                  {/* Browser Bar */}
-                  <div className="flex items-center gap-2 mb-8 pb-6 border-b border-slate-200 dark:border-slate-800">
-                    <div className="flex gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-400" />
-                      <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                      <div className="w-3 h-3 rounded-full bg-green-400" />
-                    </div>
-                    <div className="flex-1 px-4 py-1.5 mx-2 rounded-md bg-slate-100 dark:bg-slate-800 text-xs text-slate-500">
-                      localhost:3000/dashboard
-                    </div>
-                  </div>
-
-                  {/* Content Preview */}
-                  <div className="space-y-4">
-                    <div className="h-3 rounded-full w-2/3 bg-gradient-to-r from-primary-400 to-accent-400" />
-                    <div className="h-3 rounded-full w-3/4 bg-slate-200 dark:bg-slate-800" />
-
-                    <div className="space-y-3 pt-8">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex gap-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-400 to-accent-400 opacity-20" />
-                          <div className="flex-1 space-y-2">
-                            <div className="h-2 bg-slate-300 dark:bg-slate-700 rounded-full w-24" />
-                            <div className="h-2 bg-slate-200 dark:bg-slate-800 rounded-full w-32" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-6 grid grid-cols-2 gap-3">
-                      <div className="h-10 rounded-lg bg-gradient-to-r from-primary-500 to-accent-500" />
-                      <div className="h-10 rounded-lg bg-slate-200 dark:bg-slate-800" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* Right Side - Interactive Demo */}
+              <InteractiveDemoPreview />
             </div>
           </div>
         </section>
