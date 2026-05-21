@@ -96,7 +96,7 @@ export default function Home() {
       <AnimatedCanvas />
       <main className="overflow-hidden">
         {/* Hero - God Tier */}
-        <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-20 pb-32 overflow-hidden">
+        <section className="relative min-h-[600px] lg:min-h-[700px] flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-20 overflow-hidden">
           {/* Premium Animated Background */}
           <div className="absolute inset-0 -z-10 overflow-hidden">
             {/* Animated Orbs */}
