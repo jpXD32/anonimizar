@@ -94,27 +94,45 @@ export default function DashboardPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
-        <div className="max-w-5xl mx-auto space-y-8">
-          {/* Progress Indicator */}
+      <main className="relative min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        {/* Premium Animated Background */}
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          {/* Animated Orbs */}
+          <div className="absolute top-20 -right-40 w-96 h-96 bg-gradient-to-br from-primary-400/30 to-transparent rounded-full blur-3xl animate-pulse" />
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-accent-400/30 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-gradient-to-br from-purple-400/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+
+          {/* Grid Pattern */}
+          <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.1]" style={{
+            backgroundImage: `linear-gradient(0deg, transparent 24%, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.1) 26%, transparent 27%, transparent 74%, rgba(99, 102, 241, 0.1) 75%, rgba(99, 102, 241, 0.1) 76%, transparent 77%, transparent),
+                            linear-gradient(90deg, transparent 24%, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.1) 26%, transparent 27%, transparent 74%, rgba(99, 102, 241, 0.1) 75%, rgba(99, 102, 241, 0.1) 76%, transparent 77%, transparent)`,
+            backgroundSize: '50px 50px'
+          }} />
+
+          {/* Gradient Backdrop */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-50/50 to-slate-100 dark:via-slate-900/30 dark:to-slate-900/50" />
+        </div>
+
+        <div className="max-w-5xl mx-auto space-y-8 relative z-10">
+          {/* Progress Indicator - Enhanced */}
           <div className="flex gap-4 items-center justify-between overflow-x-auto pb-2">
             {[1, 2, 3, 4].map((step) => (
               <React.Fragment key={step}>
                 <div
-                  className={`flex items-center justify-center w-12 h-12 rounded-full font-bold transition-all ${
+                  className={`flex items-center justify-center w-12 h-12 rounded-full font-bold font-black transition-all duration-300 shadow-lg ${
                     step <= store.currentStep
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      ? 'bg-gradient-to-br from-primary-500 to-accent-600 text-white shadow-primary-500/50 scale-110'
+                      : 'bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 backdrop-blur-sm'
                   }`}
                 >
                   {step}
                 </div>
                 {step < 4 && (
                   <div
-                    className={`h-1 flex-1 min-w-8 rounded-full transition-all ${
+                    className={`h-1.5 flex-1 min-w-8 rounded-full transition-all duration-500 ${
                       step < store.currentStep
-                        ? 'bg-primary-600'
-                        : 'bg-slate-200 dark:bg-slate-800'
+                        ? 'bg-gradient-to-r from-primary-600 to-accent-600'
+                        : 'bg-slate-200/50 dark:bg-slate-800/50'
                     }`}
                   />
                 )}
@@ -122,47 +140,60 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Step Label */}
-          <div className="text-center">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+          {/* Step Label - Enhanced */}
+          <div className="text-center space-y-4">
+            <p className="text-sm font-semibold text-primary-600 dark:text-primary-400 uppercase tracking-widest">
               Paso {store.currentStep} de 4
             </p>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-4xl sm:text-5xl font-black tracking-tight bg-gradient-to-r from-slate-900 via-primary-700 to-slate-900 dark:from-white dark:via-primary-300 dark:to-white bg-clip-text text-transparent">
               {store.currentStep === 1 && '📤 Sube tu Archivo'}
-              {store.currentStep === 2 && '⚙️ Configura'}
-              {store.currentStep === 3 && '⏳ Procesando'}
+              {store.currentStep === 2 && '⚙️ Configura Columnas'}
+              {store.currentStep === 3 && '⏳ Procesando...'}
               {store.currentStep === 4 && '✅ Descarga Resultados'}
             </h1>
           </div>
 
           {/* Content by Step */}
           {store.currentStep === 1 && (
-            <FileUpload onFileData={handleFileData} />
+            <div className="animate-fade-in">
+              <FileUpload onFileData={handleFileData} />
+            </div>
           )}
 
           {store.currentStep === 2 && store.fileColumns.length > 0 && (
-            <div className="space-y-6">
-              <ColumnSelector
-                columns={store.fileColumns}
-                selectedColumns={store.selectedColumns}
-                selectAll={store.selectAll}
-                onSelectColumns={store.setSelectedColumns}
-                onSelectAll={store.setSelectAll}
-                onProcessing={handleProcessing}
-              />
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-800/50 shadow-xl overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-accent-500/5 pointer-events-none" />
+                <div className="relative">
+                  <ColumnSelector
+                    columns={store.fileColumns}
+                    selectedColumns={store.selectedColumns}
+                    selectAll={store.selectAll}
+                    onSelectColumns={store.setSelectedColumns}
+                    onSelectAll={store.setSelectAll}
+                    onProcessing={handleProcessing}
+                  />
+                </div>
+              </div>
 
               {/* Data Preview */}
-              <DataPreview
-                data={store.fileData}
-                columns={store.fileColumns}
-                loading={false}
-                rowsToShow={5}
-              />
+              <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-800/50 shadow-xl overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-accent-500/5 pointer-events-none" />
+                <div className="relative">
+                  <DataPreview
+                    data={store.fileData}
+                    columns={store.fileColumns}
+                    loading={false}
+                    rowsToShow={5}
+                  />
+                </div>
+              </div>
 
               {/* Back Button */}
               <Button
                 onClick={() => store.setCurrentStep(1)}
                 variant="secondary"
+                className="w-full"
               >
                 ← Volver
               </Button>
@@ -178,15 +209,20 @@ export default function DashboardPage() {
           )}
 
           {store.currentStep === 4 && store.anonymizedData && (
-            <div className="space-y-6">
-              {/* Results Summary */}
-              <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
-                <CardHeader>
-                  <CardTitle className="text-green-900 dark:text-green-100">
-                    ✅ Anonimización Completada
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            <div className="space-y-6 animate-fade-in">
+              {/* Results Summary - Premium */}
+              <div className="bg-gradient-to-br from-white/90 to-slate-50/90 dark:from-slate-800/90 dark:to-slate-900/90 backdrop-blur-xl rounded-2xl border border-green-200/50 dark:border-green-800/50 shadow-2xl overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-emerald-500/5 pointer-events-none" />
+                <div className="relative p-8 space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-black bg-gradient-to-r from-green-600 to-emerald-600 dark:from-green-400 dark:to-emerald-400 bg-clip-text text-transparent">
+                      ✅ Anonimización Completada
+                    </h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+                      Tu archivo ha sido procesado exitosamente con los siguientes resultados
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     {[
                       { label: 'Personas', value: store.statistics.persons, icon: '👤' },
@@ -194,20 +230,27 @@ export default function DashboardPage() {
                       { label: 'RUTs', value: store.statistics.ruts, icon: '🆔' },
                       { label: 'Emails', value: store.statistics.emails, icon: '📧' },
                       { label: 'Teléfonos', value: store.statistics.phones, icon: '📱' },
-                    ].map((stat) => (
+                    ].map((stat, i) => (
                       <div
                         key={stat.label}
-                        className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-green-200 dark:border-green-800"
+                        className="group relative p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/50 dark:border-slate-700/50 hover:border-green-200 dark:hover:border-green-700 transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-green-500/10 cursor-default"
+                        style={{ animationDelay: `${i * 50}ms` }}
                       >
-                        <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                          {stat.icon} {stat.value}
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">{stat.label}</p>
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-emerald-500/0 group-hover:from-green-500/5 group-hover:to-emerald-500/5 rounded-xl transition-all duration-300 pointer-events-none" />
+                        <div className="relative space-y-1">
+                          <p className="text-3xl font-black text-slate-900 dark:text-white">
+                            {stat.icon}
+                          </p>
+                          <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {stat.value}
+                          </p>
+                          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">{stat.label}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
               {/* Download Options */}
               <DownloadOptions
@@ -248,40 +291,41 @@ export default function DashboardPage() {
             />
           )}
 
-          {/* Help Section */}
-          <Card className="mt-12">
+          {/* Help Section - Enhanced */}
+          <div className="mt-12 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-800/50 shadow-xl overflow-hidden transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 pointer-events-none" />
             <div
-              className="p-6 cursor-pointer flex items-center justify-between"
+              className="p-8 cursor-pointer flex items-center justify-between relative z-10 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors"
               onClick={() => setShowHelp(!showHelp)}
             >
-              <h3 className="font-semibold text-slate-900 dark:text-white">
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white">
                 ❓ ¿Necesitas Ayuda?
               </h3>
               <ChevronDown
-                className={`w-5 h-5 transition-transform ${showHelp ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 transition-transform duration-300 text-primary-600 dark:text-primary-400 ${showHelp ? 'rotate-180' : ''}`}
               />
             </div>
             {showHelp && (
-              <CardContent className="border-t border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="border-t border-slate-200/50 dark:border-slate-800/50 p-8 space-y-6 relative z-10">
                 <div>
-                  <h4 className="font-semibold text-slate-900 dark:text-white mb-2">
-                    ¿Qué datos se anonimizeán?
+                  <h4 className="font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                    <span>🔍</span> ¿Qué datos se anonimizeán?
                   </h4>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                     Se detectan automáticamente: nombres, RUTs chilenos, emails, teléfonos, ubicaciones y organizaciones.
                   </p>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-slate-900 dark:text-white mb-2">
-                    ¿Es reversible?
+                  <h4 className="font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                    <span>🔐</span> ¿Es reversible?
                   </h4>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                     Sin el archivo de mapeos, es irreversible. Guarda los mapeos de forma segura si necesitas recuperar los datos originales.
                   </p>
                 </div>
-              </CardContent>
+              </div>
             )}
-          </Card>
+          </div>
         </div>
       </main>
 
