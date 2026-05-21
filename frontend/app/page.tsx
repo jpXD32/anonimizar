@@ -84,13 +84,6 @@ export default function Home() {
     },
   ]
 
-  const stats = [
-    { value: '100M+', label: 'Registros Procesados', change: '+150%' },
-    { value: '50K+', label: 'Usuarios Confiables', change: '+200%' },
-    { value: '1M+', label: 'Archivos Anonimizados', change: '+180%' },
-    { value: '99.9%', label: 'Uptime & Reliability', change: '+5%' },
-  ]
-
   return (
     <>
       <Header />
@@ -195,40 +188,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Stats Section - Premium */}
-        <section className="relative py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-transparent via-slate-50/50 to-slate-100 dark:via-slate-900/20 dark:to-slate-900/40">
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {stats.map((stat, i) => (
-                <div key={i} className="group relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary-500/5 to-accent-500/5 rounded-2xl group-hover:from-primary-500/10 group-hover:to-accent-500/10 transition-all duration-300" />
-                  <div className="relative p-8 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 hover:border-primary-200 dark:hover:border-primary-800 transition-all">
-                    <div className="flex items-end justify-between mb-6">
-                      <div>
-                        <div className="text-5xl sm:text-6xl font-black bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">
-                          <AnimatedCounter
-                            value={parseInt(stat.value.replace(/[^\d]/g, ''))}
-                            duration={2500}
-                            suffix={stat.value.replace(/\d+/g, '')}
-                          />
-                        </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{stat.label}</p>
-                      </div>
-                      <div className="px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-semibold">
-                        {stat.change}
-                      </div>
-                    </div>
-                    <div className="h-1 w-full bg-gradient-to-r from-primary-500/20 to-accent-500/20 rounded-full overflow-hidden">
-                      <div className="h-full w-3/4 bg-gradient-to-r from-primary-500 to-accent-500" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Features - God Tier Grid */}
+{/* Features - God Tier Grid */}
         <FadeInSection>
           <section className="relative py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50">
             <div className="absolute inset-0 -z-10 overflow-hidden">
