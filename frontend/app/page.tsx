@@ -5,9 +5,6 @@ import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { Button } from '@/components/ui/Button'
 import { AnimatedCanvas } from '@/components/common/AnimatedCanvas'
-import { DemoVideo } from '@/components/common/DemoVideo'
-import { ParallaxSection } from '@/components/common/ParallaxSection'
-import { FadeInSection } from '@/components/common/FadeInSection'
 import { InteractiveDemoPreview } from '@/components/common/InteractiveDemoPreview'
 import { Lock, Shield, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react'
 
@@ -115,32 +112,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-
-        {/* Live Demo Section */}
-        <FadeInSection delay={200}>
-          <section className="relative py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50/50 to-white dark:from-slate-900/30 dark:to-slate-950">
-            <ParallaxSection offset={0.3}>
-            <div className="max-w-6xl mx-auto">
-              <div className="text-center space-y-6 mb-12">
-                <h2 className="text-5xl sm:text-6xl font-black tracking-tight">
-                  <span className="block text-slate-900 dark:text-white mb-2">Mira en Acción</span>
-                  <span className="block bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">Demostración en Vivo</span>
-                </h2>
-                <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-light">
-                  Observa cómo Anonimizador protege tus datos en tiempo real con una interfaz intuitiva
-                </p>
-              </div>
-
-              <div className="max-w-4xl mx-auto">
-                <DemoVideo
-                  title="Dashboard Demo"
-                  thumbnailUrl="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 720'%3E%3Cdefs%3E%3ClinearGradient id='g1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233B82F6;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%238B5CF6;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1280' height='720' fill='url(%23g1)'/%3E%3Ctext x='640' y='360' text-anchor='middle' dominant-baseline='middle' font-size='48' font-weight='bold' fill='white' font-family='system-ui'%3EAnonimizador Dashboard%3C/text%3E%3C/svg%3E"
-                />
-              </div>
-            </div>
-            </ParallaxSection>
-          </section>
-        </FadeInSection>
       </main>
 
       <Footer />
