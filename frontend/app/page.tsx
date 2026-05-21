@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { AnimatedCanvas } from '@/components/common/AnimatedCanvas'
 import { DemoVideo } from '@/components/common/DemoVideo'
-import { ParallaxSection } from '@/components/common/ParallaxSection'
+import { ParallaxSection } from '@/components/common/ParallexSection'
 import { AnimatedCounter } from '@/components/common/AnimatedCounter'
 import { PerspectiveCard } from '@/components/common/PerspectiveCard'
+import { FadeInSection } from '@/components/common/FadeInSection'
+import { GradientBorder } from '@/components/common/GradientBorder'
 import {
   Shield,
   Lock,
@@ -264,14 +266,15 @@ export default function Home() {
         </section>
 
         {/* Features - God Tier Grid */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50">
-          <div className="absolute inset-0 -z-10 overflow-hidden">
-            {/* Feature section background orbs */}
-            <div className="absolute top-1/4 -right-64 w-96 h-96 bg-accent-400/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-1/4 -left-64 w-96 h-96 bg-primary-400/10 rounded-full blur-3xl" />
-          </div>
+        <FadeInSection>
+          <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50">
+            <div className="absolute inset-0 -z-10 overflow-hidden">
+              {/* Feature section background orbs */}
+              <div className="absolute top-1/4 -right-64 w-96 h-96 bg-accent-400/10 rounded-full blur-3xl" />
+              <div className="absolute bottom-1/4 -left-64 w-96 h-96 bg-primary-400/10 rounded-full blur-3xl" />
+            </div>
 
-          <ParallaxSection offset={0.2}>
+            <ParallaxSection offset={0.2}>
             <div className="max-w-7xl mx-auto">
               <div className="text-center space-y-6 mb-24">
                 <h2 className="text-6xl sm:text-7xl font-black tracking-tight">
@@ -338,12 +341,14 @@ export default function Home() {
               })}
             </div>
             </div>
-          </ParallaxSection>
-        </section>
+            </ParallaxSection>
+          </section>
+        </FadeInSection>
 
         {/* Live Demo Section */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50/50 to-white dark:from-slate-900/30 dark:to-slate-950">
-          <ParallaxSection offset={0.3}>
+        <FadeInSection delay={200}>
+          <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50/50 to-white dark:from-slate-900/30 dark:to-slate-950">
+            <ParallaxSection offset={0.3}>
             <div className="max-w-6xl mx-auto">
               <div className="text-center space-y-8 mb-16">
                 <h2 className="text-5xl sm:text-6xl font-black tracking-tight">
@@ -362,8 +367,9 @@ export default function Home() {
                 />
               </div>
             </div>
-          </ParallaxSection>
-        </section>
+            </ParallaxSection>
+          </section>
+        </FadeInSection>
 
         {/* CTA Final - God Tier */}
         <section className="relative py-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
