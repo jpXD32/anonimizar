@@ -196,7 +196,7 @@ export default function Home() {
         </section>
 
         {/* Stats Section - Premium */}
-        <section className="relative py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-transparent via-slate-50/50 to-slate-100 dark:via-slate-900/20 dark:to-slate-900/40">
+        <section className="relative py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-transparent via-slate-50/50 to-slate-100 dark:via-slate-900/20 dark:to-slate-900/40">
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {stats.map((stat, i) => (
@@ -230,7 +230,7 @@ export default function Home() {
 
         {/* Features - God Tier Grid */}
         <FadeInSection>
-          <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50">
+          <section className="relative py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50">
             <div className="absolute inset-0 -z-10 overflow-hidden">
               {/* Feature section background orbs */}
               <div className="absolute top-1/4 -right-64 w-96 h-96 bg-accent-400/10 rounded-full blur-3xl" />
@@ -239,7 +239,7 @@ export default function Home() {
 
             <ParallaxSection offset={0.2}>
             <div className="max-w-7xl mx-auto">
-              <div className="text-center space-y-6 mb-24">
+              <div className="text-center space-y-6 mb-12">
                 <h2 className="text-6xl sm:text-7xl font-black tracking-tight">
                   <span className="block text-slate-900 dark:text-white">Características</span>
                   <span className="block bg-gradient-to-r from-primary-600 via-accent-600 to-primary-700 bg-clip-text text-transparent">Extraordinarias</span>
@@ -310,10 +310,10 @@ export default function Home() {
 
         {/* Live Demo Section */}
         <FadeInSection delay={200}>
-          <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50/50 to-white dark:from-slate-900/30 dark:to-slate-950">
+          <section className="relative py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50/50 to-white dark:from-slate-900/30 dark:to-slate-950">
             <ParallaxSection offset={0.3}>
             <div className="max-w-6xl mx-auto">
-              <div className="text-center space-y-8 mb-16">
+              <div className="text-center space-y-6 mb-12">
                 <h2 className="text-5xl sm:text-6xl font-black tracking-tight">
                   <span className="block text-slate-900 dark:text-white mb-2">Mira en Acción</span>
                   <span className="block bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">Demostración en Vivo</span>
@@ -335,7 +335,7 @@ export default function Home() {
         </FadeInSection>
 
         {/* CTA Final - God Tier */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <section className="relative py-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
           <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-700 dark:from-primary-700 dark:via-primary-800 dark:to-accent-700" />
             <div className="absolute inset-0 opacity-60">
