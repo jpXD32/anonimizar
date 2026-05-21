@@ -8,6 +8,7 @@ import { ColumnSelector } from '@/components/anonymizer/ColumnSelector'
 import { ProcessingProgress } from '@/components/anonymizer/ProcessingProgress'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Skeleton } from '@/components/common/Skeleton'
 import { useAnonymizerStore } from '@/store/anonymizer.store'
 import { Download, ChevronDown, BarChart3 } from 'lucide-react'
 
@@ -123,39 +124,45 @@ export default function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 dark:border-slate-700">
-                          {store.fileColumns.map((col) => (
-                            <th
-                              key={col}
-                              className="px-4 py-2 text-left font-semibold text-slate-900 dark:text-white"
-                            >
-                              {col}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(store.fileData || []).slice(0, 3).map((row, i) => (
-                          <tr key={i} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
-                            {store.fileColumns.map((col, j) => (
-                              <td
-                                key={j}
-                                className="px-4 py-2 text-slate-600 dark:text-slate-400 truncate"
-                              >
-                                {typeof row === 'object' && row !== null ? row[j] : '—'}
-                              </td>
+                  {!store.fileData ? (
+                    <Skeleton variant="table" count={3} />
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 dark:border-slate-700">
+                              {store.fileColumns.map((col) => (
+                                <th
+                                  key={col}
+                                  className="px-4 py-2 text-left font-semibold text-slate-900 dark:text-white"
+                                >
+                                  {col}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(store.fileData || []).slice(0, 3).map((row, i) => (
+                              <tr key={i} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                {store.fileColumns.map((col, j) => (
+                                  <td
+                                    key={j}
+                                    className="px-4 py-2 text-slate-600 dark:text-slate-400 truncate"
+                                  >
+                                    {typeof row === 'object' && row !== null ? row[j] : '—'}
+                                  </td>
+                                ))}
+                              </tr>
                             ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-4">
-                    Mostrando primeras 3 filas de {store.fileData?.length || 0} total
-                  </p>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-4">
+                        Mostrando primeras 3 filas de {store.fileData?.length || 0} total
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -218,29 +225,40 @@ export default function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Button
-                      variant="primary"
-                      fullWidth
-                      onClick={() => alert('Implementar descarga CSV')}
-                    >
-                      📄 Descargar CSV
-                    </Button>
-                    <Button
-                      variant="primary"
-                      fullWidth
-                      onClick={() => alert('Implementar descarga Excel')}
-                    >
-                      📊 Descargar Excel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      fullWidth
-                      onClick={() => alert('Implementar descarga Mapeos')}
-                    >
-                      🔐 Descargar Mapeos
-                    </Button>
-                  </div>
+                  {!store.anonymizedData ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton
+                          key={i}
+                          className="h-12 rounded-lg"
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Button
+                        variant="primary"
+                        fullWidth
+                        onClick={() => alert('Implementar descarga CSV')}
+                      >
+                        📄 Descargar CSV
+                      </Button>
+                      <Button
+                        variant="primary"
+                        fullWidth
+                        onClick={() => alert('Implementar descarga Excel')}
+                      >
+                        📊 Descargar Excel
+                      </Button>
+                      <Button
+                        variant="primary"
+                        fullWidth
+                        onClick={() => alert('Implementar descarga Mapeos')}
+                      >
+                        🔐 Descargar Mapeos
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
