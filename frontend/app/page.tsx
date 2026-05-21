@@ -5,6 +5,9 @@ import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
+import { AnimatedCanvas } from '@/components/common/AnimatedCanvas'
+import { DemoVideo } from '@/components/common/DemoVideo'
+import { ParallaxSection } from '@/components/common/ParallaxSection'
 import {
   Shield,
   Lock,
@@ -86,6 +89,7 @@ export default function Home() {
   return (
     <>
       <Header />
+      <AnimatedCanvas />
       <main className="overflow-hidden">
         {/* Hero - God Tier */}
         <section className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-20 pb-32 overflow-hidden">
@@ -254,17 +258,24 @@ export default function Home() {
         </section>
 
         {/* Features - God Tier Grid */}
-        <section className="relative py-32 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center space-y-6 mb-24">
-              <h2 className="text-6xl sm:text-7xl font-black tracking-tight">
-                <span className="block text-slate-900 dark:text-white">Características</span>
-                <span className="block bg-gradient-to-r from-primary-600 via-accent-600 to-primary-700 bg-clip-text text-transparent">Extraordinarias</span>
-              </h2>
-              <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-light">
-                Potencia profesional con simplicidad elegante
-              </p>
-            </div>
+        <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50">
+          <div className="absolute inset-0 -z-10 overflow-hidden">
+            {/* Feature section background orbs */}
+            <div className="absolute top-1/4 -right-64 w-96 h-96 bg-accent-400/10 rounded-full blur-3xl" />
+            <div className="absolute bottom-1/4 -left-64 w-96 h-96 bg-primary-400/10 rounded-full blur-3xl" />
+          </div>
+
+          <ParallaxSection offset={0.2}>
+            <div className="max-w-7xl mx-auto">
+              <div className="text-center space-y-6 mb-24">
+                <h2 className="text-6xl sm:text-7xl font-black tracking-tight">
+                  <span className="block text-slate-900 dark:text-white">Características</span>
+                  <span className="block bg-gradient-to-r from-primary-600 via-accent-600 to-primary-700 bg-clip-text text-transparent">Extraordinarias</span>
+                </h2>
+                <p className="text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-light">
+                  Potencia profesional con simplicidad elegante
+                </p>
+              </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((feature, i) => {
@@ -319,7 +330,32 @@ export default function Home() {
                 )
               })}
             </div>
-          </div>
+            </div>
+          </ParallaxSection>
+        </section>
+
+        {/* Live Demo Section */}
+        <section className="relative py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50/50 to-white dark:from-slate-900/30 dark:to-slate-950">
+          <ParallaxSection offset={0.3}>
+            <div className="max-w-6xl mx-auto">
+              <div className="text-center space-y-8 mb-16">
+                <h2 className="text-5xl sm:text-6xl font-black tracking-tight">
+                  <span className="block text-slate-900 dark:text-white mb-2">Mira en Acción</span>
+                  <span className="block bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">Demostración en Vivo</span>
+                </h2>
+                <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-light">
+                  Observa cómo Anonimizador protege tus datos en tiempo real con una interfaz intuitiva
+                </p>
+              </div>
+
+              <div className="max-w-4xl mx-auto">
+                <DemoVideo
+                  title="Dashboard Demo"
+                  thumbnailUrl="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 720'%3E%3Cdefs%3E%3ClinearGradient id='g1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%233B82F6;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%238B5CF6;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1280' height='720' fill='url(%23g1)'/%3E%3Ctext x='640' y='360' text-anchor='middle' dominant-baseline='middle' font-size='48' font-weight='bold' fill='white' font-family='system-ui'%3EAnonimizador Dashboard%3C/text%3E%3C/svg%3E"
+                />
+              </div>
+            </div>
+          </ParallaxSection>
         </section>
 
         {/* CTA Final - God Tier */}
