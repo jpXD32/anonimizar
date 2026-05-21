@@ -113,9 +113,9 @@ export default function Home() {
           </div>
 
           <div className="max-w-7xl mx-auto relative z-10 w-full">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               {/* Content */}
-              <div className="space-y-12">
+              <div className="space-y-8">
                 {/* Badge */}
                 <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-primary-200 dark:border-primary-800 bg-gradient-to-r from-primary-100/80 to-accent-100/80 dark:from-primary-900/20 dark:to-accent-900/20 backdrop-blur-md hover:shadow-lg transition-all duration-300">
                   <div className="w-2 h-2 rounded-full bg-gradient-to-r from-primary-500 to-accent-500 animate-pulse" />
@@ -125,8 +125,8 @@ export default function Home() {
                 </div>
 
                 {/* Main Heading */}
-                <div className="space-y-8">
-                  <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black leading-[1.1] tracking-tight">
+                <div className="space-y-6">
+                  <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight">
                     <span className="block h-fit">
                       <span className="inline-block bg-gradient-to-r from-primary-600 via-primary-700 via-accent-600 to-primary-800 bg-size-200 bg-pos-0 hover:bg-pos-100 transition-all duration-1000 bg-clip-text text-transparent">
                         Protege
@@ -148,7 +148,7 @@ export default function Home() {
                 </div>
 
                 {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 pt-8">
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <Button
                     asLink
                     href="/dashboard"
@@ -172,7 +172,7 @@ export default function Home() {
                 </div>
 
                 {/* Trust Items */}
-                <div className="flex flex-wrap gap-8 pt-8 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex flex-wrap gap-6 pt-4 border-t border-slate-200 dark:border-slate-800">
                   {[
                     { icon: Lock, text: 'Totalmente Privado' },
                     { icon: Shield, text: 'Sin Cloud' },
