@@ -11,13 +11,19 @@ import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/common/Skeleton'
 import { useAnonymizerStore } from '@/store/anonymizer.store'
 import { Download, ChevronDown, BarChart3 } from 'lucide-react'
+import { apiClient } from '@/lib/api'
+import { downloadFile } from '@/lib/utils'
+import { DataPreview } from '@/components/anonymizer/DataPreview'
+import { DownloadOptions } from '@/components/anonymizer/DownloadOptions'
+import { MappingsViewer } from '@/components/anonymizer/MappingsViewer'
+import { ErrorAlert } from '@/components/common/ErrorAlert'
 
 export default function DashboardPage() {
   const store = useAnonymizerStore()
   const [showHelp, setShowHelp] = useState(false)
 
-  const handleFileData = (data: any[][], columns: string[]) => {
-    store.setFileData(data, columns)
+  const handleFileData = (data: any[][], columns: string[], file: File) => {
+    store.setFileData(data, columns, file)
   }
 
   const handleProcessing = async () => {
@@ -26,32 +32,62 @@ export default function DashboardPage() {
       return
     }
 
+    if (!store.uploadedFile) {
+      store.setError('No se encontró el archivo cargado')
+      return
+    }
+
     store.startProcessing()
 
     try {
-      // Simulate processing - in production, call API
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise((resolve) => setTimeout(resolve, 200))
-        store.updateProgress(i, `Anonimizando... ${i}%`)
-      }
+      const response = await apiClient.anonymizeFile(
+        store.uploadedFile,
+        store.selectedColumns,
+        store.saveMappings
+      )
 
-      // Mock results
-      const mockStats = {
-        persons: Math.floor(Math.random() * 150),
-        locations: Math.floor(Math.random() * 50),
-        ruts: Math.floor(Math.random() * 100),
-        emails: Math.floor(Math.random() * 120),
-        phones: Math.floor(Math.random() * 80),
-      }
+      const anonymizedArray = response.anonymized_data.map(row =>
+        response.columns.map(col => row[col])
+      )
 
-      const mockMappings = {
-        'person_juan': 'Persona_001',
-        'email_juan@mail.com': 'correo_001@anonimizado.local',
-      }
-
-      store.finishProcessing(store.fileData || [], mockStats, mockMappings)
+      store.finishProcessing(anonymizedArray, response.statistics, response.mappings)
     } catch (error) {
       store.setError(error instanceof Error ? error.message : 'Error durante el procesamiento')
+    }
+  }
+
+  const handleDownloadCSV = async () => {
+    try {
+      const blob = await apiClient.downloadCSV(
+        store.anonymizedData?.map(row =>
+          Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
+        ) || []
+      )
+      downloadFile(blob, 'anonymized-data.csv')
+    } catch (error) {
+      store.setError(error instanceof Error ? error.message : 'Error descargando CSV')
+    }
+  }
+
+  const handleDownloadExcel = async () => {
+    try {
+      const blob = await apiClient.downloadExcel(
+        store.anonymizedData?.map(row =>
+          Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
+        ) || []
+      )
+      downloadFile(blob, 'anonymized-data.xlsx')
+    } catch (error) {
+      store.setError(error instanceof Error ? error.message : 'Error descargando Excel')
+    }
+  }
+
+  const handleDownloadMappings = async () => {
+    try {
+      const blob = await apiClient.downloadMappings(store.mappings)
+      downloadFile(blob, 'mappings.json')
+    } catch (error) {
+      store.setError(error instanceof Error ? error.message : 'Error descargando mapeos')
     }
   }
 
@@ -116,55 +152,12 @@ export default function DashboardPage() {
               />
 
               {/* Data Preview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5" />
-                    📋 Vista Previa de Datos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {!store.fileData ? (
-                    <Skeleton variant="table" count={3} />
-                  ) : (
-                    <>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-slate-200 dark:border-slate-700">
-                              {store.fileColumns.map((col) => (
-                                <th
-                                  key={col}
-                                  className="px-4 py-2 text-left font-semibold text-slate-900 dark:text-white"
-                                >
-                                  {col}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(store.fileData || []).slice(0, 3).map((row, i) => (
-                              <tr key={i} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
-                                {store.fileColumns.map((col, j) => (
-                                  <td
-                                    key={j}
-                                    className="px-4 py-2 text-slate-600 dark:text-slate-400 truncate"
-                                  >
-                                    {typeof row === 'object' && row !== null ? row[j] : '—'}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-4">
-                        Mostrando primeras 3 filas de {store.fileData?.length || 0} total
-                      </p>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
+              <DataPreview
+                data={store.fileData}
+                columns={store.fileColumns}
+                loading={false}
+                rowsToShow={5}
+              />
 
               {/* Back Button */}
               <Button
@@ -217,50 +210,20 @@ export default function DashboardPage() {
               </Card>
 
               {/* Download Options */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Download className="w-5 h-5" />
-                    💾 Descargar Resultados
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {!store.anonymizedData ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <Skeleton
-                          key={i}
-                          className="h-12 rounded-lg"
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Button
-                        variant="primary"
-                        fullWidth
-                        onClick={() => alert('Implementar descarga CSV')}
-                      >
-                        📄 Descargar CSV
-                      </Button>
-                      <Button
-                        variant="primary"
-                        fullWidth
-                        onClick={() => alert('Implementar descarga Excel')}
-                      >
-                        📊 Descargar Excel
-                      </Button>
-                      <Button
-                        variant="primary"
-                        fullWidth
-                        onClick={() => alert('Implementar descarga Mapeos')}
-                      >
-                        🔐 Descargar Mapeos
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <DownloadOptions
+                onDownloadCSV={handleDownloadCSV}
+                onDownloadExcel={handleDownloadExcel}
+                onDownloadMappings={handleDownloadMappings}
+                mappingsCount={Object.keys(store.mappings).length}
+              />
+
+              {/* Mappings Viewer */}
+              {Object.keys(store.mappings).length > 0 && (
+                <MappingsViewer
+                  mappings={store.mappings}
+                  onDownload={handleDownloadMappings}
+                />
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-4">
@@ -277,11 +240,12 @@ export default function DashboardPage() {
 
           {/* Error Display */}
           {store.error && (
-            <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-              <CardContent className="pt-6">
-                <p className="text-red-900 dark:text-red-100">❌ {store.error}</p>
-              </CardContent>
-            </Card>
+            <ErrorAlert
+              title="Error"
+              message={store.error}
+              onDismiss={() => store.setError(null)}
+              closable
+            />
           )}
 
           {/* Help Section */}

@@ -9,7 +9,7 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
 interface FileUploadProps {
-  onFileData: (data: any[][], columns: string[]) => void
+  onFileData: (data: any[][], columns: string[], file: File) => void
 }
 
 export function FileUpload({ onFileData }: FileUploadProps) {
@@ -30,7 +30,7 @@ export function FileUpload({ onFileData }: FileUploadProps) {
           if (results.data && results.data.length > 0) {
             const columns = results.data[0] as string[]
             const data = results.data.slice(1)
-            onFileData(data, columns)
+            onFileData(data, columns, file)
           }
           setProcessing(false)
         },
@@ -50,7 +50,7 @@ export function FileUpload({ onFileData }: FileUploadProps) {
           if (jsonData && jsonData.length > 0) {
             const columns = jsonData[0] as string[]
             const rows = jsonData.slice(1) as any[][]
-            onFileData(rows, columns)
+            onFileData(rows, columns, file)
           }
         } catch (error) {
           console.error('Error parsing Excel file:', error)

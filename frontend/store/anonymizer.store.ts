@@ -32,7 +32,7 @@ export interface AnonymizerState {
 
   // Actions
   setFile: (file: File) => void
-  setFileData: (data: any[][], columns: string[]) => void
+  setFileData: (data: any[][], columns: string[], file?: File) => void
   setSelectedColumns: (columns: string[]) => void
   setSelectAll: (value: boolean) => void
   setSaveMappings: (value: boolean) => void
@@ -73,8 +73,9 @@ export const useAnonymizerStore = create<AnonymizerState>((set) => ({
 
   setFile: (file) => set({ uploadedFile: file, currentStep: 1 }),
 
-  setFileData: (data, columns) =>
+  setFileData: (data, columns, file) =>
     set({
+      uploadedFile: file || null,
       fileData: data,
       fileColumns: columns,
       selectedColumns: columns,
