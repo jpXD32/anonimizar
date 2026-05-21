@@ -91,15 +91,15 @@ export default function Home() {
                 </div>
 
                 {/* Trust Items */}
-                <div className="flex flex-wrap gap-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <div className="grid grid-cols-3 gap-6 pt-6 border-t border-slate-200 dark:border-slate-800">
                   {[
                     { icon: Lock, text: 'Totalmente Privado' },
                     { icon: Shield, text: 'Sin Cloud' },
                     { icon: CheckCircle2, text: 'Open Source' },
                   ].map((item, i) => (
-                    <div key={i} className="flex items-center gap-3 group cursor-pointer">
-                      <div className="p-2.5 rounded-lg bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 group-hover:shadow-lg transition-all">
-                        <item.icon className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                    <div key={i} className="flex flex-col items-center gap-3 group cursor-pointer text-center">
+                      <div className="p-3 rounded-lg bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 group-hover:shadow-lg group-hover:shadow-primary-500/20 transition-all">
+                        <item.icon className="w-6 h-6 text-primary-600 dark:text-primary-400" />
                       </div>
                       <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{item.text}</span>
                     </div>
