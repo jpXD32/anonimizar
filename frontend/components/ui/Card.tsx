@@ -14,10 +14,12 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     <div
       ref={ref}
       className={cn(
-        'rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 transition-smooth',
-        gradient && 'bg-gradient-card',
-        interactive && 'hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-800 cursor-pointer transform hover:scale-105',
-        glass && 'glass',
+        'rounded-2xl border bg-white dark:bg-slate-900 p-6 transition-all duration-300',
+        'border-slate-200 dark:border-slate-800',
+        'shadow-sm hover:shadow-lg dark:shadow-xl dark:hover:shadow-2xl',
+        gradient && 'bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900',
+        interactive && 'cursor-pointer hover:border-primary-300 dark:hover:border-primary-700 hover:-translate-y-1',
+        glass && 'glass-effect',
         className
       )}
       {...props}

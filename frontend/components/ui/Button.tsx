@@ -6,20 +6,20 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-smooth cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
+  'inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
   {
     variants: {
       variant: {
-        primary: 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:shadow-lg hover:shadow-primary-500/20 active:scale-95',
-        secondary: 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-700',
-        outline: 'border-2 border-primary-600 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20',
-        ghost: 'text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800',
-        danger: 'bg-red-600 text-white hover:bg-red-700 hover:shadow-lg hover:shadow-red-500/20',
-        success: 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg hover:shadow-green-500/20',
+        primary: 'bg-gradient-to-r from-primary-600 via-primary-600 to-accent-600 text-white hover:shadow-xl hover:shadow-primary-500/30 hover:-translate-y-0.5 active:scale-95 dark:hover:shadow-primary-500/20',
+        secondary: 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-700 hover:shadow-md hover:-translate-y-0.5',
+        outline: 'border-2 border-primary-600 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 hover:border-primary-700',
+        ghost: 'text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50',
+        danger: 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:shadow-lg hover:shadow-red-500/30 hover:-translate-y-0.5',
+        success: 'bg-gradient-to-r from-green-600 to-green-700 text-white hover:shadow-lg hover:shadow-green-500/30 hover:-translate-y-0.5',
       },
       size: {
         sm: 'px-3 py-1.5 text-sm',
-        md: 'px-4 py-2 text-base',
+        md: 'px-4 py-2.5 text-base',
         lg: 'px-6 py-3 text-lg',
         xl: 'px-8 py-4 text-xl',
         icon: 'h-10 w-10 p-0',

@@ -207,6 +207,37 @@ html.dark {
   @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-smooth cursor-pointer;
 }
 
+/* Premium gradient backgrounds */
+.gradient-primary {
+  @apply bg-gradient-to-br from-primary-600 via-primary-700 to-accent-600;
+}
+
+.gradient-secondary {
+  @apply bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-950 dark:to-slate-900;
+}
+
+/* Glass morphism */
+.glass-effect {
+  @apply backdrop-blur-xl bg-white/10 dark:bg-white/5 border border-white/20 dark:border-white/10;
+}
+
+/* Smooth gradient text */
+.gradient-text {
+  @apply bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent;
+}
+
+/* Card glow effect */
+.card-glow {
+  @apply shadow-xl shadow-primary-500/10 dark:shadow-primary-500/5;
+}
+
+/* Subtle background pattern */
+.pattern-bg {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
 /* Form inputs */
 input[type="text"],
 input[type="email"],
