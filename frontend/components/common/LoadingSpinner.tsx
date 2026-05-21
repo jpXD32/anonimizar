@@ -6,13 +6,19 @@ import { cn } from '@/lib/utils'
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   text?: string
+  subtitle?: string
+  remainingTime?: number
   fullScreen?: boolean
+  showTips?: boolean
 }
 
 export function LoadingSpinner({
   size = 'md',
   text,
+  subtitle,
+  remainingTime,
   fullScreen = false,
+  showTips = false,
 }: LoadingSpinnerProps) {
   const sizeClasses = {
     sm: 'w-6 h-6 border-2',
@@ -22,9 +28,10 @@ export function LoadingSpinner({
   }
 
   const spinner = (
-    <div className="flex flex-col items-center gap-4">
-      {/* Main spinner */}
+    <div className="flex flex-col items-center gap-6">
+      {/* Main spinner with multiple layers */}
       <div className="relative">
+        {/* Outer rotating ring */}
         <div
           className={cn(
             'rounded-full border-slate-200 dark:border-slate-700',
@@ -33,31 +40,63 @@ export function LoadingSpinner({
             sizeClasses[size]
           )}
         />
-        {/* Inner glow effect */}
+        {/* Inner pulsing ring */}
+        <div
+          className={cn(
+            'absolute inset-2 rounded-full border-2',
+            'border-transparent border-t-accent-500 border-r-accent-500',
+            'animate-spin-slow'
+          )}
+          style={{ animationDirection: 'reverse' }}
+        />
+        {/* Glow effect */}
         <div
           className={cn(
             'absolute inset-0 rounded-full',
-            'opacity-20 blur-md',
-            'border-primary-600 dark:border-primary-500',
-            sizeClasses[size]
+            'opacity-20 blur-lg',
+            'animate-scale-pulse',
+            'bg-gradient-to-r from-primary-500 to-accent-500'
           )}
-          style={{
-            animation: 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-          }}
         />
       </div>
 
-      {/* Loading text */}
+      {/* Loading text with subtitle */}
       {text && (
-        <div className="space-y-2 text-center">
-          <p className="text-sm font-medium text-slate-900 dark:text-white">
+        <div className="space-y-3 text-center max-w-xs">
+          <p className="text-lg font-semibold text-slate-900 dark:text-white">
             {text}
           </p>
-          <div className="flex gap-1 justify-center">
+          {subtitle && (
+            <p className="text-sm text-slate-600 dark:text-slate-400 animate-slide-right">
+              {subtitle}
+            </p>
+          )}
+
+          {/* Bouncing dots */}
+          <div className="flex gap-1 justify-center pt-2">
             <span className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" />
             <span className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
             <span className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
           </div>
+
+          {/* Remaining time */}
+          {remainingTime !== undefined && remainingTime > 0 && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 pt-2">
+              ⏱️ ~{remainingTime}s restantes
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Tips */}
+      {showTips && (
+        <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg max-w-sm">
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+            💡 Datos locales, datos seguros
+          </p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Tus datos se procesan 100% en tu computadora sin enviar a ningún servidor.
+          </p>
         </div>
       )}
     </div>
