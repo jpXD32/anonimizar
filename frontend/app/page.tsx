@@ -8,6 +8,8 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { AnimatedCanvas } from '@/components/common/AnimatedCanvas'
 import { DemoVideo } from '@/components/common/DemoVideo'
 import { ParallaxSection } from '@/components/common/ParallaxSection'
+import { AnimatedCounter } from '@/components/common/AnimatedCounter'
+import { PerspectiveCard } from '@/components/common/PerspectiveCard'
 import {
   Shield,
   Lock,
@@ -239,7 +241,11 @@ export default function Home() {
                     <div className="flex items-end justify-between mb-6">
                       <div>
                         <div className="text-5xl sm:text-6xl font-black bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent">
-                          {stat.value}
+                          <AnimatedCounter
+                            value={parseInt(stat.value.replace(/[^\d]/g, ''))}
+                            duration={2500}
+                            suffix={stat.value.replace(/\d+/g, '')}
+                          />
                         </div>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{stat.label}</p>
                       </div>
@@ -282,12 +288,12 @@ export default function Home() {
                 const Icon = feature.icon
                 const isHovered = hoveredFeature === i
                 return (
-                  <div
-                    key={i}
-                    onMouseEnter={() => setHoveredFeature(i)}
-                    onMouseLeave={() => setHoveredFeature(null)}
-                    className="group relative"
-                  >
+                  <PerspectiveCard key={i} className="group relative">
+                    <div
+                      onMouseEnter={() => setHoveredFeature(i)}
+                      onMouseLeave={() => setHoveredFeature(null)}
+                      className="group relative h-full"
+                    >
                     <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-20 rounded-2xl blur-xl transition-all duration-500`} />
                     <div className={`relative p-8 rounded-2xl border transition-all duration-300 ${
                       isHovered
@@ -326,7 +332,8 @@ export default function Home() {
                         }`} />
                       </div>
                     </div>
-                  </div>
+                    </div>
+                  </PerspectiveCard>
                 )
               })}
             </div>
