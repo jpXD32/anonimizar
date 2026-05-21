@@ -1,10 +1,9 @@
 'use client'
 
 import React, { useRef } from 'react'
-import { Upload, FileSpreadsheet } from 'lucide-react'
+import { FileSpreadsheet, Upload } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Skeleton } from '@/components/common/Skeleton'
-import { formatBytes } from '@/lib/utils'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -29,7 +28,7 @@ export function FileUpload({ onFileData }: FileUploadProps) {
         complete: (results) => {
           if (results.data && results.data.length > 0) {
             const columns = results.data[0] as string[]
-            const data = results.data.slice(1)
+            const data = results.data.slice(1) as any[][]
             onFileData(data, columns, file)
           }
           setProcessing(false)
@@ -58,6 +57,8 @@ export function FileUpload({ onFileData }: FileUploadProps) {
         setProcessing(false)
       }
       reader.readAsArrayBuffer(file)
+    } else {
+      setProcessing(false)
     }
   }
 
@@ -78,20 +79,22 @@ export function FileUpload({ onFileData }: FileUploadProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileSpreadsheet className="w-5 h-5 text-primary-600" />
-          📤 Paso 1: Carga tu Archivo
+    <Card className="overflow-hidden p-0 shadow-sm hover:shadow-sm">
+      <CardHeader className="border-b border-slate-200 bg-slate-50 px-6 py-5 dark:border-slate-800 dark:bg-slate-900/60">
+        <CardTitle className="flex items-center gap-3 text-base">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-primary-600 shadow-sm dark:bg-slate-950 dark:text-primary-300">
+            <FileSpreadsheet className="h-5 w-5" />
+          </span>
+          Carga tu archivo
         </CardTitle>
-        <CardDescription>
-          Selecciona un archivo CSV o Excel con los datos que deseas anonimizar
+        <CardDescription className="pl-12">
+          Selecciona un archivo CSV o Excel con los datos que deseas anonimizar.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         {processing ? (
           <div className="space-y-4">
-            <Skeleton variant="circle" className="w-16 h-16 mx-auto" />
+            <Skeleton variant="circle" className="mx-auto h-16 w-16" />
             <Skeleton variant="line" count={3} />
           </div>
         ) : (
@@ -103,10 +106,10 @@ export function FileUpload({ onFileData }: FileUploadProps) {
             }}
             onDragLeave={() => setIsDragging(false)}
             onClick={handleClick}
-            className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
+            className={`relative cursor-pointer rounded-lg border border-dashed p-10 text-center transition-all ${
               isDragging
                 ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                : 'border-slate-300 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-600'
+                : 'border-slate-300 bg-white hover:border-primary-400 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-primary-600'
             }`}
           >
             <input
@@ -120,8 +123,8 @@ export function FileUpload({ onFileData }: FileUploadProps) {
 
             <div className="space-y-4">
               <div className="flex justify-center">
-                <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center animate-bounce">
-                  <Upload className="w-8 h-8 text-primary-600" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950/40">
+                  <Upload className="h-7 w-7 text-primary-600 dark:text-primary-300" />
                 </div>
               </div>
 
@@ -129,16 +132,14 @@ export function FileUpload({ onFileData }: FileUploadProps) {
                 <p className="text-lg font-semibold text-slate-900 dark:text-white">
                   Arrastra tu archivo aquí
                 </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                   O haz clic para seleccionar
                 </p>
               </div>
 
-              <div className="flex gap-4 justify-center text-xs text-slate-600 dark:text-slate-400">
-                <span>📊 CSV</span>
-                <span>•</span>
-                <span>📈 Excel</span>
-                <span>•</span>
+              <div className="flex flex-wrap justify-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span>CSV</span>
+                <span>Excel</span>
                 <span>Max 50 MB</span>
               </div>
             </div>

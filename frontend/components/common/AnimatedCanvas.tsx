@@ -50,7 +50,7 @@ export function AnimatedCanvas() {
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       // Update and draw particles
-      particles.forEach((particle, index) => {
+      particles.forEach((particle) => {
         particle.x += particle.vx
         particle.y += particle.vy
         particle.opacity += (Math.random() - 0.5) * 0.01

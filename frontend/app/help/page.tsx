@@ -68,7 +68,7 @@ export default function HelpPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
+      <main className="premium-page-bg min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto space-y-12">
           {/* Hero */}
           <div className="text-center space-y-4 py-8">

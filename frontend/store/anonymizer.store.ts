@@ -50,7 +50,7 @@ const initialState = {
   fileColumns: [],
   anonymizedData: null,
   selectedColumns: [],
-  selectAll: true,
+  selectAll: false,
   saveMappings: true,
   previousMappings: null,
   currentStep: 1 as const,
@@ -78,7 +78,8 @@ export const useAnonymizerStore = create<AnonymizerState>((set) => ({
       uploadedFile: file || null,
       fileData: data,
       fileColumns: columns,
-      selectedColumns: columns,
+      selectedColumns: [],
+      selectAll: false,
       currentStep: 2,
     }),
 
@@ -88,7 +89,7 @@ export const useAnonymizerStore = create<AnonymizerState>((set) => ({
   setSelectAll: (value) =>
     set((state) => ({
       selectAll: value,
-      selectedColumns: value ? state.fileColumns : state.selectedColumns,
+      selectedColumns: value ? state.fileColumns : [],
     })),
 
   setSaveMappings: (value) => set({ saveMappings: value }),

@@ -4,113 +4,91 @@ import React from 'react'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { Button } from '@/components/ui/Button'
-import { AnimatedCanvas } from '@/components/common/AnimatedCanvas'
 import { InteractiveDemoPreview } from '@/components/common/InteractiveDemoPreview'
-import { Lock, Shield, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react'
+import {
+  ArrowRight,
+  BookOpen,
+  Lock,
+  RotateCcw,
+  Shield,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react'
+
+const stats = [
+  { value: 'Local', label: 'sin envío a nube', Icon: Lock, color: 'text-teal-600 bg-teal-50' },
+  { value: 'Consistente', label: 'mismos datos, mismo alias', Icon: ShieldCheck, color: 'text-primary-600 bg-primary-50' },
+  { value: 'Reversible', label: 'si guardas el mapeo', Icon: RotateCcw, color: 'text-blue-600 bg-blue-50' },
+]
 
 export default function Home() {
   return (
     <>
       <Header />
-      <AnimatedCanvas />
-      <main className="overflow-hidden">
-        {/* Hero - God Tier */}
-        <section className="relative min-h-[600px] lg:min-h-[700px] flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-20 overflow-hidden">
-          {/* Premium Animated Background */}
-          <div className="absolute inset-0 -z-10 overflow-hidden">
-            {/* Animated Orbs */}
-            <div className="absolute top-20 -right-40 w-96 h-96 bg-gradient-to-br from-primary-400/30 to-transparent rounded-full blur-3xl animate-pulse" />
-            <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-accent-400/30 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-            <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-gradient-to-br from-purple-400/20 to-transparent rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+      <main className="premium-page-bg overflow-hidden text-slate-950 dark:text-white">
+        <section className="relative overflow-hidden px-4 pb-2 pt-20 sm:px-6 lg:px-8">
+          <div className="absolute left-0 top-24 -z-0 h-[520px] w-[42%] opacity-60 [background-image:radial-gradient(rgba(79,95,217,0.22)_1px,transparent_1px)] [background-size:18px_18px]" />
 
-            {/* Grid Pattern */}
-            <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.1]" style={{
-              backgroundImage: `linear-gradient(0deg, transparent 24%, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.1) 26%, transparent 27%, transparent 74%, rgba(99, 102, 241, 0.1) 75%, rgba(99, 102, 241, 0.1) 76%, transparent 77%, transparent),
-                              linear-gradient(90deg, transparent 24%, rgba(99, 102, 241, 0.1) 25%, rgba(99, 102, 241, 0.1) 26%, transparent 27%, transparent 74%, rgba(99, 102, 241, 0.1) 75%, rgba(99, 102, 241, 0.1) 76%, transparent 77%, transparent)`,
-              backgroundSize: '50px 50px'
-            }} />
-          </div>
-
-          <div className="max-w-7xl mx-auto relative z-10 w-full">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              {/* Content */}
-              <div className="space-y-8">
-                {/* Badge */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-600 hover:bg-accent-700 transition-all duration-300">
-                  <span className="text-xs font-black text-white uppercase tracking-wider">Nuevo</span>
-                  <span className="text-xs font-semibold text-accent-100">Versión 1.0 - Disponible ahora</span>
-                </div>
-
-                {/* Main Heading */}
-                <div className="space-y-6">
-                  <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight">
-                    <span className="block h-fit">
-                      <span className="inline-block bg-gradient-to-r from-primary-600 via-primary-700 via-accent-600 to-primary-800 bg-size-200 bg-pos-0 hover:bg-pos-100 transition-all duration-1000 bg-clip-text text-transparent">
-                        Protege
-                      </span>
-                    </span>
-                    <span className="block h-fit text-slate-900 dark:text-white">
-                      tus Datos
-                    </span>
-                    <span className="block h-fit">
-                      <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-slate-400 via-slate-600 to-slate-400 dark:from-slate-400 dark:via-slate-300 dark:to-slate-400">
-                        100% Local
-                      </span>
-                    </span>
-                  </h1>
-
-                  <p className="text-xl sm:text-2xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-lg font-light">
-                    Anonimiza información confidencial sin dejar tu computadora. Tecnología de punta con privacidad absoluta.
-                  </p>
-                </div>
-
-                {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                  <Button
-                    asLink
-                    href="/dashboard"
-                    variant="primary"
-                    size="lg"
-                    className="group h-14 text-lg font-semibold shadow-xl shadow-primary-500/25 hover:shadow-2xl hover:shadow-primary-500/40 transition-all"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    Comenzar Ahora
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                  <Button
-                    asLink
-                    href="/help"
-                    variant="outline"
-                    size="lg"
-                    className="h-14 text-lg font-semibold hover:bg-slate-100 dark:hover:bg-slate-800/50"
-                  >
-                    Ver Demo
-                  </Button>
-                </div>
-
-                {/* Trust Items */}
-                <div className="grid grid-cols-3 gap-6 pt-6 border-t border-slate-200 dark:border-slate-800">
-                  {[
-                    { icon: Lock, text: 'Totalmente Privado', desc: 'Tus datos nunca salen de tu equipo.' },
-                    { icon: Shield, text: 'Sin Cloud', desc: 'Procesamiento 100% local y seguro.' },
-                    { icon: CheckCircle2, text: 'Open Source', desc: 'Transparente, confiable y auditable.' },
-                  ].map((item, i) => (
-                    <div key={i} className="flex flex-col items-center gap-3 group cursor-pointer text-center">
-                      <div className="p-3 rounded-lg bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 group-hover:shadow-lg group-hover:shadow-primary-500/20 transition-all">
-                        <item.icon className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.text}</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{item.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          <div className="relative z-10 mx-auto grid w-full max-w-6xl min-w-0 items-center gap-6 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1fr)] 2xl:max-w-[1800px] 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)]">
+            <div className="w-full max-w-[358px] min-w-0 sm:max-w-none">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50/90 px-3 py-1.5 text-sm font-black text-teal-800 shadow-sm dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-200">
+                <Shield className="h-4 w-4" />
+                Herramienta local para datos sensibles
               </div>
 
-              {/* Right Side - Interactive Demo */}
-              <InteractiveDemoPreview />
+              <div className="max-w-2xl min-w-0">
+                <h1 className="max-w-full text-4xl font-black leading-[1.02] tracking-tight text-slate-950 sm:text-5xl lg:text-[2.42rem] xl:text-[2.78rem] 2xl:text-[4rem] dark:text-white">
+                  <span className="block">Anonimiza datos</span>
+                  <span className="block">confidenciales</span>
+                  <span className="block bg-gradient-to-r from-primary-600 via-indigo-500 to-accent-600 bg-clip-text text-transparent">
+                    sin salir de tu equipo
+                  </span>
+                </h1>
+                <p className="mt-4 max-w-xl text-base leading-6 text-slate-600 sm:text-[1.05rem] 2xl:max-w-3xl 2xl:text-xl 2xl:leading-8 dark:text-slate-300">
+                  Detecta nombres, RUT, correos, teléfonos y ubicaciones para reemplazarlos con valores consistentes y auditables.
+                </p>
+              </div>
+
+              <div className="mt-5 flex max-w-full flex-col gap-3 sm:flex-row">
+                <Button
+                  asLink
+                  href="/dashboard"
+                  variant="primary"
+                  size="lg"
+                  className="group h-[46px] w-full rounded-xl px-6 shadow-xl shadow-primary-500/25 sm:w-auto"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  Comenzar ahora
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </Button>
+                <Button
+                  asLink
+                  href="/help"
+                  variant="outline"
+                  size="lg"
+                  className="h-[46px] w-full rounded-xl border-primary-500 bg-white/80 px-6 text-primary-700 sm:w-auto dark:bg-transparent dark:text-primary-300"
+                >
+                  Ver guía
+                  <BookOpen className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <div className="mt-5 grid max-w-xl grid-cols-1 gap-0 overflow-hidden rounded-xl border border-slate-200 bg-white/80 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60 sm:grid-cols-3">
+                {stats.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3 border-b border-slate-200 px-4 py-2.5 last:border-b-0 dark:border-slate-800 sm:border-b-0 sm:border-r sm:last:border-r-0">
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${item.color}`}>
+                      <item.Icon className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-black leading-tight text-slate-950 dark:text-white">{item.value}</p>
+                      <p className="mt-0.5 text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">{item.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <InteractiveDemoPreview />
           </div>
         </section>
       </main>

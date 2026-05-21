@@ -1,64 +1,73 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { Moon, Sun, Lock } from 'lucide-react'
+import { ArrowRight, Moon, ShieldCheck, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 
 export function Header() {
   const { theme, setTheme } = useTheme()
+  const pathname = usePathname()
+
+  const navItems = [
+    { href: '/', label: 'Inicio' },
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/help', label: 'Ayuda' },
+    { href: '/docs', label: 'Documentación' },
+  ]
 
   return (
-    <header className="fixed top-0 w-full bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 z-50 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-accent-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30 group-hover:shadow-primary-500/50 transition-all">
-              <Lock className="w-5 h-5 text-white" />
+    <header className="fixed top-2 z-50 w-full px-4 sm:px-6 lg:px-8">
+      <div className="premium-surface-glow mx-auto max-w-6xl rounded-2xl border border-slate-200/70 bg-white/86 px-4 shadow-xl shadow-slate-900/5 backdrop-blur-2xl dark:border-slate-800/80 dark:bg-slate-950/86 sm:px-5 2xl:max-w-[1800px]">
+        <div className="flex h-[54px] min-w-0 items-center justify-between gap-3">
+          <Link href="/" className="group flex min-w-0 items-center gap-3">
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 via-indigo-600 to-teal-500 shadow-lg shadow-primary-500/25 transition-all group-hover:-translate-y-0.5">
+              <ShieldCheck className="h-5 w-5 text-white" />
+              <span className="absolute inset-0 rounded-xl bg-white/20 opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-bold gradient-text leading-tight">
+            <div className="hidden min-w-0 sm:block">
+              <h1 className="truncate text-base font-black leading-tight tracking-tight text-slate-950 dark:text-white">
                 Anonimizador
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Datos Seguros</p>
+              <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Privacidad local
+              </p>
             </div>
           </Link>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
-            <Link href="/" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors relative group">
-              Inicio
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-600 to-accent-600 group-hover:w-full transition-all" />
-            </Link>
-            <Link href="/dashboard" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors relative group">
-              Dashboard
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-600 to-accent-600 group-hover:w-full transition-all" />
-            </Link>
-            <Link href="/help" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors relative group">
-              Ayuda
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-600 to-accent-600 group-hover:w-full transition-all" />
-            </Link>
-            <Link href="/docs" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors relative group">
-              Documentación
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-600 to-accent-600 group-hover:w-full transition-all" />
-            </Link>
-            <div className="px-2.5 py-1 rounded-full bg-accent-600 text-white text-xs font-black uppercase tracking-wider">
-              Nuevo
-            </div>
+          <nav className="hidden min-w-0 items-center gap-1 rounded-xl border border-slate-200/80 bg-white/55 p-1 shadow-sm shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900/70 lg:flex">
+            {navItems.map((item) => {
+              const active = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={
+                    active
+                      ? 'relative rounded-lg bg-primary-50 px-3.5 py-2 text-sm font-black text-primary-700 shadow-sm dark:bg-primary-950/40 dark:text-primary-300'
+                      : 'rounded-lg px-3.5 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-white/90 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-950/70 dark:hover:text-white'
+                  }
+                >
+                  {item.label}
+                  {active && (
+                    <span className="absolute inset-x-4 -bottom-1 h-0.5 rounded-full bg-gradient-to-r from-primary-600 to-accent-600" />
+                  )}
+                </Link>
+              )
+            })}
           </nav>
 
-          {/* Theme Toggle & CTA */}
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-              aria-label="Toggle theme"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-white"
+              aria-label="Cambiar tema"
             >
               {theme === 'dark' ? (
-                <Sun className="w-5 h-5 text-yellow-400" />
+                <Sun className="h-5 w-5 text-yellow-400" />
               ) : (
-                <Moon className="w-5 h-5 text-slate-600" />
+                <Moon className="h-5 w-5" />
               )}
             </button>
 
@@ -67,9 +76,10 @@ export function Header() {
               href="/dashboard"
               variant="primary"
               size="sm"
-              className="hidden sm:inline-flex shadow-lg shadow-primary-500/25"
+              className="hidden h-9 rounded-xl px-4 shadow-xl shadow-primary-500/25 sm:inline-flex"
             >
-              Comenzar
+              {pathname === '/dashboard' ? 'App abierta' : 'Abrir app'}
+              {pathname !== '/dashboard' && <ArrowRight className="h-4 w-4" />}
             </Button>
           </div>
         </div>

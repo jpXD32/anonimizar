@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
-import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { BarChart3, User, MapPin, Mail, Phone, FileText } from 'lucide-react'
 
 interface ProcessingProgressProps {
