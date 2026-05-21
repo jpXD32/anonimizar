@@ -5,6 +5,7 @@ import { Upload, FileSpreadsheet } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { formatBytes } from '@/lib/utils'
 import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 
 interface FileUploadProps {
   onFileData: (data: any[][], columns: string[]) => void
@@ -37,10 +38,25 @@ export function FileUpload({ onFileData }: FileUploadProps) {
         },
       })
     } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-      // For Excel files, you would need to use a library like xlsx
-      // This is a placeholder - in production, use XLSX library
-      alert('Excel support coming soon. Please use CSV format.')
-      setProcessing(false)
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer)
+          const workbook = XLSX.read(data, { type: 'array' })
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+          if (jsonData && jsonData.length > 0) {
+            const columns = jsonData[0] as string[]
+            const rows = jsonData.slice(1) as any[][]
+            onFileData(rows, columns)
+          }
+        } catch (error) {
+          console.error('Error parsing Excel file:', error)
+        }
+        setProcessing(false)
+      }
+      reader.readAsArrayBuffer(file)
     }
   }
 
