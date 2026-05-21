@@ -81,6 +81,32 @@ html.dark {
   }
 }
 
+/* Skeleton Shimmer Animation - Professional Loading Effect */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton-shimmer {
+  background-size: 200% 100%;
+  background-position: -1000px 0;
+  animation: shimmer 2s infinite;
+}
+
+/* Alternative pulse animation for skeleton */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.5s ease-out;
 }
