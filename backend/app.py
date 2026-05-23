@@ -221,6 +221,7 @@ def anonymize():
         data = request.form
         columns_to_anonymize = json.loads(data.get('columns', '[]'))
         save_mappings = data.get('save_mappings', 'true').lower() == 'true'
+        confidence_mode = data.get('confidence_mode', 'standard')
 
         suffix = Path(secure_filename(file.filename)).suffix.lower()
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -235,7 +236,7 @@ def anonymize():
                 columns_to_anonymize = df.columns.tolist()
             columns_to_anonymize = validate_columns(columns_to_anonymize, df.columns.tolist())
 
-            anonymizer = DataAnonymizer(use_nlp=False)
+            anonymizer = DataAnonymizer(use_nlp=False, confidence_mode=confidence_mode)
 
             df_anonymized = anonymizer.anonymize_dataframe(
                 df,
