@@ -87,6 +87,7 @@ class DataAnonymizer:
             'ángel', 'adrián', 'bruno', 'juan', 'josé',
             'maximiliano', 'salvador', 'franco', 'andrés', 'rodrigo', 'enzo',
             'leo', 'pio', 'ivo', 'luis', 'joel', 'ari', 'aldo', 'roi', 'rui', 'omar',
+            'damian', 'damián',
             # DIMINUTIVOS MASCULINOS
             'juanito', 'juanín', 'carlitos', 'carla', 'carlín', 'pablito', 'pedrito',
             'santiaguito', 'santi', 'carmelito', 'pepito', 'jorgito', 'lupito',
@@ -194,9 +195,9 @@ class DataAnonymizer:
             # MEJORA #4: PALABRAS CLAVE CONTEXTUALES
             'context_markers': {
                 'person_indicators': [
-                    r'(?:dice|mencion|reporta|indic|según|segun|afirma|declara|testigo)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)',
-                    r'(?:el estudiante|la estudiante|el apoderado|la apoderada|el profesor|la profesora|el director|la directora|el inspector|la inspectora|el jefe|la jefa)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)',
-                    r'(?:llamad[oa]|nombrad[oa]|conocid[oa]|identificad[oa])\s+(?:como\s+)?([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)',
+                    r'(?i:dice|mencion|reporta|indic|según|segun|afirma|declara|testigo)\s+([A-Za-záéíóúñ][a-záéíóúñ]*(?:\s[A-Za-záéíóúñ][a-záéíóúñ]*)?)',
+                    r'(?i:el|la)\s+(?i:estudiante|apoderado|apoderada|profesor|profesora|director|directora|inspector|inspectora|jefe|jefa|niño|niña|alumno|alumna)\s+([A-Za-záéíóúñ][a-záéíóúñ]*(?:\s[A-Za-záéíóúñ][a-záéíóúñ]*)?)',
+                    r'(?i:llamad[oa]|nombrad[oa]|conocid[oa]|identificad[oa])\s+(?i:como\s+)?([A-Za-záéíóúñ][a-záéíóúñ]*(?:\s[A-Za-záéíóúñ][a-záéíóúñ]*)?)',
                 ],
             },
         }
@@ -342,13 +343,29 @@ class DataAnonymizer:
         # ========== 8. NOMBRES CON CONTEXTO ==========
         # MEJORA #4 + #5: Detectar nombres por contexto
         for pattern_str in self.compiled_patterns['context_markers']['person_indicators']:
-            pattern = re.compile(pattern_str, re.IGNORECASE)
+            pattern = re.compile(pattern_str)  # SIN re.IGNORECASE - ya usando (?i:...) en patrones
             matches = list(pattern.finditer(result))
             for match in reversed(matches):
                 try:
                     name = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
-                    if self._is_name_like(name):
-                        result = result[:match.start(1)] + '<nombre>' + result[match.end(1):]
+
+                    # Limpiar: tomar solo palabras que parecen nombres
+                    words = name.split()
+                    cleaned_words = []
+                    for word in words:
+                        word_lower = self._normalize_text(word)
+                        # Incluir palabra si está en nombres comunes o parece un nombre
+                        if word_lower in self.common_names or (len(word) >= 3 and word[0].isupper()):
+                            cleaned_words.append(word)
+                        else:
+                            # Si no parece nombre, parar (evita capturar "fue", "es", etc.)
+                            break
+
+                    cleaned_name = ' '.join(cleaned_words)
+                    if self._is_name_like(cleaned_name):
+                        # Reemplazar solo el nombre limpio, no todo lo capturado
+                        cleaned_end = match.start(1) + len(cleaned_name)
+                        result = result[:match.start(1)] + '<nombre>' + result[cleaned_end:]
                         self.counter['person'] = self.counter.get('person', 0) + 1
                 except:
                     pass
