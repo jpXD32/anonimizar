@@ -31,8 +31,38 @@ class DataAnonymizer:
     7. VALIDACIÓN DE RUT - Dígito verificador
     """
 
-    def __init__(self):
+    def __init__(self, confidence_mode='standard'):
+        """
+        Inicializa el anonimizador con modo de confianza especificado.
+
+        confidence_mode (str):
+            - 'conservative' (0.95): Solo detecta con muy alta confianza
+            - 'standard' (0.90): Balance entre detección y precisión (DEFAULT)
+            - 'aggressive' (0.80): Máxima detección, tolera más falsos positivos
+        """
         self.counter = {}
+        self.confidence_mode = confidence_mode
+
+        # Umbrales de confianza por modo
+        self.confidence_thresholds = {
+            'conservative': 0.95,
+            'standard': 0.90,
+            'aggressive': 0.80,
+        }
+        self.min_confidence = self.confidence_thresholds.get(confidence_mode, 0.90)
+
+        # Confianza de cada tipo de dato (0-1)
+        self.element_confidence = {
+            'rut': 0.95,                    # Muy alta - patrón muy específico
+            'email': 0.95,                  # Patrón muy específico
+            'phone': 0.85,                  # Puede haber variaciones
+            'address': 0.80,                # Complicado, más falsos positivos
+            'location': 0.90,               # Comunas/ciudades bien conocidas
+            'institution': 0.90,            # Instituciones conocidas
+            'person_context': 0.85,         # Más confiable con contexto
+            'person_capitalized': 0.75,     # Bajo - muchos falsos positivos
+        }
+
         self.compiled_patterns = self._compile_patterns()
         self._init_data_lists()
 
@@ -89,6 +119,15 @@ class DataAnonymizer:
             'maximiliano', 'salvador', 'franco', 'andrés', 'rodrigo', 'enzo',
             'leo', 'pio', 'ivo', 'luis', 'joel', 'ari', 'aldo', 'roi', 'rui', 'omar',
             'damian', 'damián', 'dylan', 'cristopher', 'christopher',
+            # Nombres EXTRANJEROS comunes (nuevo)
+            'john', 'james', 'michael', 'robert', 'william', 'charles', 'george',
+            'pierre', 'jacques', 'louis', 'françois', 'jean', 'paul',
+            'giuseppe', 'mario', 'giovanni', 'antonio', 'franco',
+            # Nombres MAPUCHE (nuevo)
+            'quilapan', 'huenupillan', 'llaipén', 'lonco', 'reuque',
+            'elicura', 'kilapan', 'paillamán', 'coñuecar', 'licanantú',
+            # Apodos LOCALES/COLOQUIALES (nuevo)
+            'pelao', 'gordo', 'flaco', 'chino', 'rubio', 'negro', 'cano', 'crespo',
             # DIMINUTIVOS MASCULINOS
             'juanito', 'juanín', 'carlitos', 'carla', 'carlín', 'pablito', 'pedrito',
             'santiaguito', 'santi', 'carmelito', 'pepito', 'jorgito', 'lupito',
@@ -200,13 +239,23 @@ class DataAnonymizer:
                 re.compile(r'\b9\d{8}\b'),
             ],
 
-            # DIRECCIÓN
+            # DIRECCIÓN - MEJORA v3.2: Direcciones complejas
             'address': [
+                # Patrones BÁSICOS (originales)
                 re.compile(r'\b(?:Calle|Avenida|Av\.|Pasaje|Pje\.|Cra\.|Carrera|Camino|Dpto|Depto|Piso|Apto|Apartamento|Bloque|Lote|Sector)\s+[A-Za-z0-9\s\.#-]+(?:\s+\d+[A-Za-z0-9\s\.,#-]*)?', re.IGNORECASE),
                 re.compile(r'\b(?:Pje|Dpto|Apto)\s*\d+\b', re.IGNORECASE),
                 re.compile(r'\bkm\s?\d+(?:\s?[a-z])?\b', re.IGNORECASE),
                 re.compile(r'\b(?:Manzana|Mz)\s?[A-Z0-9]+\b', re.IGNORECASE),
                 re.compile(r'\b(?:Lote|Sitio)\s?\d+\b', re.IGNORECASE),
+
+                # NUEVOS: Carreteras complejas
+                re.compile(r'\b(?:Carretera|Camino|Ruta)\s+(?:a|hacia|al?)\s+[A-Za-záéíóúñ\s]+(?:,?\s*km\s?\d+(?:\.\d+)?)?', re.IGNORECASE),
+
+                # NUEVOS: Hijuelas y terrenos
+                re.compile(r'\b(?:Hijuela|Parcela|Terreno|Propiedad)\s+[#°]?\s*\d+(?:[A-Z])?', re.IGNORECASE),
+
+                # NUEVOS: Coordenadas GPS (formato: -33.437, -70.673)
+                re.compile(r'-?\d{1,2}\.\d{3,6},?\s*-?\d{1,2}\.\d{3,6}', re.IGNORECASE),
             ],
 
             # MEJORA #4: PALABRAS CLAVE CONTEXTUALES
@@ -235,6 +284,30 @@ class DataAnonymizer:
         if not isinstance(value, str):
             return ''
         return value.lower().strip()
+
+    def _validate_confidence(self, element_type: str, is_match: bool = True, extra_confidence: float = 0.0) -> bool:
+        """
+        MEJORA v3.2: Valida si una detección debe incluirse según nivel de confianza.
+
+        Args:
+            element_type (str): tipo de elemento ('rut', 'email', 'person_capitalized', etc.)
+            is_match (bool): si el patrón coincidió
+            extra_confidence (float): confianza adicional si se cumplen condiciones extra (ej: nombre en lista)
+
+        Returns:
+            bool: True si la confianza es suficiente para incluir el elemento
+        """
+        if not is_match:
+            return False
+
+        # Obtener confianza del elemento (default 0.85 si no existe)
+        confidence = self.element_confidence.get(element_type, 0.85)
+
+        # Agregar confianza extra si se cumplen condiciones adicionales
+        confidence = min(confidence + extra_confidence, 0.99)
+
+        # Comparar con umbral mínimo del modo actual
+        return confidence >= self.min_confidence
 
     def _validate_rut(self, rut_str: str) -> bool:
         """
@@ -307,19 +380,33 @@ class DataAnonymizer:
 
         parts = text.split()
         if len(parts) >= 2:
-            # Para nombres de múltiples palabras: al menos la primera parte debe ser un nombre
+            # Para nombres de múltiples palabras: verificar patrón
             first_part_lower = self._normalize_text(parts[0])
-            if first_part_lower in self.common_names:
+
+            # MEJORA v3.2: Nombres compuestos
+            # "José María", "Juan Carlos" - ambas partes deben ser nombres
+            all_parts_names = True
+            valid_names_count = 0
+            for part in parts:
+                part_lower = self._normalize_text(part)
+                if part_lower in self.common_names or part_lower in self.diminutives_map:
+                    valid_names_count += 1
+                elif part.lower() not in ['de', 'del', 'y', 'e']:  # Conectores permitidos
+                    all_parts_names = False
+                    break
+
+            # Si al menos 2 partes son nombres válidos, considerar como nombre compuesto
+            if valid_names_count >= 2:
                 return True
-            # NO aceptar todas las partes capitalizadas automáticamente (problema en MAYÚSCULAS SOSTENIDAS)
-            # Ahora requiere que al menos la primera parte esté en common_names
-            # O primera parte capitali yada y otras son apellidos comunes
-            if parts[0] and parts[0][0].isupper():
-                for part in parts[1:]:
-                    part_lower = self._normalize_text(part)
-                    if part_lower not in self.common_names:
-                        return False  # Alguna parte no es nombre
-                return True  # Todas las partes son nombres
+
+            # Si solo la primera es nombre, también válido (Juan García)
+            if first_part_lower in self.common_names or first_part_lower in self.diminutives_map:
+                return True
+
+            # O si todas las partes capitalizadas y al menos 2 son nombres
+            if all_parts_names and valid_names_count >= 1:
+                return valid_names_count >= 2
+
             return False
 
         # Para palabras simples: NO aceptar solo por estar capitalizadas
@@ -355,7 +442,8 @@ class DataAnonymizer:
                 # Detectar si es RUT: tiene palabra clave OR (no tiene exclusión Y tiene 8+ dígitos)
                 is_valid_rut = has_rut_keyword or (not has_exclude_keyword and len(rut.replace('.', '').replace('-', '').replace(' ', '')) >= 8)
 
-                if is_valid_rut:
+                # MEJORA v3.2: Validar confianza según modo
+                if self._validate_confidence('rut', is_valid_rut):
                     result = result[:match.start()] + '<rut>' + result[match.end():]
                     self.counter['rut'] = self.counter.get('rut', 0) + 1
 
@@ -370,8 +458,10 @@ class DataAnonymizer:
         for pattern in self.compiled_patterns['email']:
             matches = list(pattern.finditer(result))
             for match in reversed(matches):
-                result = result[:match.start()] + '<correo>' + result[match.end():]
-                self.counter['email'] = self.counter.get('email', 0) + 1
+                # MEJORA v3.2: Validar confianza según modo
+                if self._validate_confidence('email', True):
+                    result = result[:match.start()] + '<correo>' + result[match.end():]
+                    self.counter['email'] = self.counter.get('email', 0) + 1
 
         # ========== 4. TELÉFONOS ==========
         for pattern in self.compiled_patterns['phone']:
@@ -472,13 +562,14 @@ class DataAnonymizer:
                     pass
 
         # ========== 9. NOMBRES CAPITALIZADOS ==========
-        # Detecta: Nombre Capitali Capitalizado O Nombre con apellidos en minúsculas O NOMBRES EN MAYÚSCULAS SOSTENIDAS
+        # Detecta: Nombre Capitalizado O Nombre con apellidos en minúsculas O NOMBRES EN MAYÚSCULAS SOSTENIDAS
+        # MEJORA v3.2: Incluir letras inglesas (A-Za-z) además de españolas
         name_pattern = re.compile(
-            r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*\b', re.UNICODE
+            r'\b[A-Za-záéíóúñ][a-záéíóúña-z]+(?:\s+[A-Za-záéíóúñ][a-záéíóúña-z]+)*\b', re.UNICODE
         )
         # Patrón alternativo: Nombre Capitalizado + apellidos en minúsculas
         name_pattern_with_lowercase = re.compile(
-            r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[a-záéíóúñ][a-záéíóúñ]+)+\b', re.UNICODE
+            r'\b[A-Za-záéíóúñ][a-záéíóúña-z]+(?:\s+[a-záéíóúña-z][a-záéíóúña-z]+)+\b', re.UNICODE
         )
         # Patrón nuevo: NOMBRES EN MAYÚSCULAS SOSTENIDAS (palabras que están en common_names)
         # Primero se buscará palabra por palabra dentro de textos en MAYÚSCULAS
@@ -559,8 +650,13 @@ class DataAnonymizer:
                 }
                 candidate_lower = self._normalize_text(candidate)
                 if candidate_lower not in excluded:
-                    result = result[:match.start()] + '<nombre>' + result[match.end():]
-                    self.counter['person'] = self.counter.get('person', 0) + 1
+                    # MEJORA v3.2: Validar confianza para nombres capitalizados
+                    # Si el nombre está en common_names, agregar 0.15 de confianza (total 0.90)
+                    extra_confidence = 0.15 if candidate_lower in self.common_names else 0.0
+
+                    if self._validate_confidence('person_capitalized', True, extra_confidence):
+                        result = result[:match.start()] + '<nombre>' + result[match.end():]
+                        self.counter['person'] = self.counter.get('person', 0) + 1
 
         return result
 
@@ -607,6 +703,10 @@ class DataAnonymizer:
             print(f"[OK] Completado: {col}", flush=True)
 
         return df_copy
+
+    def get_confidence_mode(self) -> str:
+        """Retorna el modo de confianza actual"""
+        return self.confidence_mode
 
     def get_summary(self) -> Dict:
         """Retorna resumen"""
