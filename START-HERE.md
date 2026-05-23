@@ -66,3 +66,21 @@ npm run dev
 ---
 
 **v3.2 | 100% Local | Sin envío a nube**
+
+---
+
+## 🚨 ¿Puertos ocupados? Usa el script inteligente
+
+Si ves errores como "Port 3000 is in use"...
+
+**Ejecuta en su lugar:**
+```
+start-services-smart.bat
+```
+
+Este script:
+✅ Encuentra automáticamente un puerto libre
+✅ Mata procesos viejos antes de iniciar
+✅ No necesitas limpiar puertos manualmente
+✅ Más confiable en Windows
+
