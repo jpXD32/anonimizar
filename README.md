@@ -2,6 +2,19 @@
 
 **Herramienta de anonimización local (100% privacidad) para proteger datos sensibles en archivos CSV/Excel.**
 
+> ✅ **System Status**: HEALTHY & OPERATIONAL (May 23, 2026 - 01:17:41)  
+> All 4 improvements implemented and tested ✅
+
+---
+
+## 📚 Essential Documentation
+
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| **[SYSTEM_STATUS.md](SYSTEM_STATUS.md)** | Current system health, config, improvements | Everyone |
+| **[CONFIDENCE_MODES_GUIDE.md](CONFIDENCE_MODES_GUIDE.md)** | How to use 🛡️ Conservative / ⚖️ Standard / 🔍 Aggressive modes | End users |
+| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Common issues & solutions | Developers |
+
 ---
 
 ## 📁 Estructura del Proyecto
