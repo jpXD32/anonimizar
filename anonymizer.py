@@ -81,9 +81,9 @@ class DataAnonymizer:
             'carlita', 'clarita', 'rocinita', 'laurita', 'andrecita', 'andreita',
             'isabela', 'isabelita', 'alexita',
             # Nombres masculinos
-            'mateo', 'santiago', 'sebastián', 'leonardo', 'matías',
+            'mateo', 'santiago', 'sebastián', 'leonardo', 'matías', 'amadeo',
             'martín', 'alejandro', 'lucas', 'nicolás', 'samuel',
-            'benjamín', 'thiago', 'emiliano', 'diego', 'tomás',
+            'benjamín', 'benjamin', 'thiago', 'emiliano', 'diego', 'tomás',
             'joaquín', 'gabriel', 'david', 'miguel', 'isaac', 'pablo',
             'ángel', 'adrián', 'bruno', 'juan', 'josé', 'gonzalo',
             'maximiliano', 'salvador', 'franco', 'andrés', 'rodrigo', 'enzo',
@@ -163,12 +163,13 @@ class DataAnonymizer:
         return {
             # RUT CHILENO
             'rut': [
-                re.compile(r'\d{1,2}\.\d{3}\.\d{3,6}-[0-9kK]'),
-                re.compile(r'\d{8,11}-[0-9kK]'),
-                re.compile(r'\d{2}\s\d{3}\s\d{3}-[0-9kK]'),
-                re.compile(r'(?<![0-9])\d{7,9}(?![0-9kK])'),
-                re.compile(r'\b\d{7}-[0-9kK]\b'),
-                re.compile(r'\b\d{1,2}\s\d{3}\s\d{3}-[0-9kK]\b'),
+                re.compile(r'\d{1,2}\.\d{3}\.\d{3,6}-[0-9kK]'),  # 17.741.137-K (estándar)
+                re.compile(r'\d{1,2}\.\d{4,6}-[0-9kK]'),        # 17.741137-K (un punto)
+                re.compile(r'\d{8,11}-[0-9kK]'),                # 17741137-K (sin puntos)
+                re.compile(r'\d{2}\s\d{3}\s\d{3}-[0-9kK]'),     # 17 741 137-K (espacios)
+                re.compile(r'(?<![0-9])\d{7,9}(?![0-9kK])'),    # 17741137 (solo dígitos)
+                re.compile(r'\b\d{7}-[0-9kK]\b'),               # 1741137-K (7 dígitos)
+                re.compile(r'\b\d{1,2}\s\d{3}\s\d{3}-[0-9kK]\b'),  # 17 741 137-K (límites palabra)
             ],
 
             # MEJORA #3: NÚMEROS DE IDENTIFICACIÓN
@@ -288,6 +289,15 @@ class DataAnonymizer:
         text = text.strip()
         text_lower = self._normalize_text(text)
 
+        # Excluir palabras muy comunes que NO son nombres
+        excluded_words = {'de', 'del', 'la', 'lo', 'los', 'las', 'el', 'un', 'una', 'unos', 'unas',
+                         'que', 'es', 'en', 'por', 'para', 'con', 'sin', 'sobre', 'fue', 'sea',
+                         'sido', 'siendo', 'están', 'estaba', 'estaban', 'realizado', 'realizada',
+                         'falsas', 'falso', 'asiste', 'existe', 'existe', 'hizo', 'hace', 'han',
+                         'ha', 'he', 'iba', 'ir', 'era', 'son', 'soy', 'eres', 'dijo', 'dice'}
+        if text_lower in excluded_words:
+            return False
+
         if text_lower in self.common_names:
             return True
 
@@ -301,9 +311,8 @@ class DataAnonymizer:
             first_part_lower = self._normalize_text(parts[0])
             if first_part_lower in self.common_names:
                 return True
-            # O todas las partes capitalizadas
-            if all(part and part[0].isupper() for part in parts):
-                return True
+            # NO aceptar todas las partes capitalizadas automáticamente (problema en MAYÚSCULAS SOSTENIDAS)
+            # Ahora requiere que al menos la primera parte esté en common_names
             # O primera parte capitali yada y otras son apellidos comunes
             if parts[0] and parts[0][0].isupper():
                 for part in parts[1:]:
@@ -313,7 +322,10 @@ class DataAnonymizer:
                 return True  # Todas las partes son nombres
             return False
 
-        return len(text) >= 3 and text[0].isupper()
+        # Para palabras simples: NO aceptar solo por estar capitalizadas
+        # Esto evita falsos positivos en textos con MAYÚSCULAS SOSTENIDAS
+        # Solo aceptar si realmente está en common_names
+        return False
 
     def anonymize_narrative(self, text: str) -> str:
         """Anonimiza relatos - VERSIÓN MEJORADA v3"""
@@ -460,7 +472,7 @@ class DataAnonymizer:
                     pass
 
         # ========== 9. NOMBRES CAPITALIZADOS ==========
-        # Detecta: Nombre Capitali Capitalizado O Nombre con apellidos en minúsculas
+        # Detecta: Nombre Capitali Capitalizado O Nombre con apellidos en minúsculas O NOMBRES EN MAYÚSCULAS SOSTENIDAS
         name_pattern = re.compile(
             r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*\b', re.UNICODE
         )
@@ -468,9 +480,13 @@ class DataAnonymizer:
         name_pattern_with_lowercase = re.compile(
             r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[a-záéíóúñ][a-záéíóúñ]+)+\b', re.UNICODE
         )
+        # Patrón nuevo: NOMBRES EN MAYÚSCULAS SOSTENIDAS (palabras que están en common_names)
+        # Primero se buscará palabra por palabra dentro de textos en MAYÚSCULAS
+        name_pattern_uppercase = None  # Se procesará manualmente
         # Buscar con ambos patrones, priorizando el patrón con minúsculas (más largo)
         matches_pattern1 = list(name_pattern.finditer(result))
         matches_pattern2 = list(name_pattern_with_lowercase.finditer(result))
+        matches_pattern_upper = []  # Se procesará manualmente después
 
         # Combinar matches, prefiriendo los del patrón 2 (con minúsculas) si se superponen
         all_matches = []
@@ -484,11 +500,56 @@ class DataAnonymizer:
             if not is_contained:
                 all_matches.append(m1)
 
+        # Agregar búsqueda manual de nombres en MAYÚSCULAS SOSTENIDAS
+        # Buscar palabras en MAYÚSCULAS que estén en common_names
+        for word in self.common_names:
+            # Convertir nombre a MAYÚSCULAS para búsqueda
+            word_upper = word.upper()
+            # Buscar la palabra en el texto, solo si está entre límites de palabra
+            pattern_word = re.compile(r'\b' + re.escape(word_upper) + r'\b', re.IGNORECASE)
+            for m in pattern_word.finditer(result):
+                # Verificar que no esté ya contenido en otros matches
+                is_contained = any((m_other.start() <= m.start() and m.end() <= m_other.end())
+                                  for m_other in matches_pattern1 + matches_pattern2)
+                if not is_contained:
+                    all_matches.append(m)
+
         # Ordenar de atrás hacia adelante para evitar cambios de índices
         matches = sorted(all_matches, key=lambda m: m.start(), reverse=True)
 
         for match in matches:
             candidate = match.group().strip()
+
+            # Para MAYÚSCULAS SOSTENIDAS, tomar solo la secuencia de nombres válidos
+            # Ej: "MATÍAS BENJAMIN AMADEO AGUAYO" → validar palabra por palabra
+            is_uppercase_sostenida = candidate.isupper()
+            if is_uppercase_sostenida:
+                # Dividir en palabras y tomar solo las que son nombres
+                words = candidate.split()
+                valid_words = []
+                for word in words:
+                    word_lower = self._normalize_text(word)
+                    # Si es nombre válido (está en common_names o diminutivos), agregarlo
+                    if word_lower in self.common_names or word_lower in self.diminutives_map:
+                        valid_words.append(word)
+                    else:
+                        # Si encontramos una palabra que NO es nombre, detener
+                        break
+
+                if len(valid_words) >= 2:  # Al menos 2 nombres válidos
+                    # Reemplazar solo los nombres válidos
+                    nombres_str = ' '.join(valid_words)
+                    # Encontrar el índice del final de los nombres válidos en el texto
+                    # Y reemplazar solo esa parte
+                    result_text = ' '.join(['<nombre>'] * len(valid_words))
+                    # Buscar el match dentro del resultado
+                    nombres_start = result.find(nombres_str, max(0, match.start() - 20))
+                    if nombres_start >= 0:
+                        result = result[:nombres_start] + result_text + result[nombres_start + len(nombres_str):]
+                        self.counter['person'] = self.counter.get('person', 0) + len(valid_words)
+                        continue
+
+            # Para casos normales (capitalizados, no MAYÚSCULAS SOSTENIDAS)
             if self._is_name_like(candidate):
                 excluded = {
                     'educación', 'región', 'provincia', 'ciudad', 'comuna',
