@@ -51,3 +51,8 @@ Thumbs.db
 # Local
 .env
 *.local
+
+# Logs
+backend/backend-debug.*.log
+backend/audit.db
+*.log
