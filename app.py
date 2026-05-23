@@ -417,6 +417,31 @@ with tab2:
             )
             st.session_state.save_mapping = save_mapping
 
+            # MEJORA v3.2: Selector de modo de confianza
+            st.divider()
+            st.subheader("⚙️ Modo de Anonimización")
+
+            confidence_mode = st.radio(
+                "Nivel de detección:",
+                options=['conservative', 'standard', 'aggressive'],
+                format_func=lambda x: {
+                    'conservative': '🛡️ Conservador (95% confianza) - Solo detecta con muy alta certeza',
+                    'standard': '⚖️ Estándar (90% confianza) - Balance entre detección y precisión',
+                    'aggressive': '🔍 Agresivo (80% confianza) - Máxima detección, tolera más falsos positivos'
+                }.get(x, x),
+                value='standard',
+                help="Elige qué tan sensible debe ser el detector de datos sensibles"
+            )
+            st.session_state.confidence_mode = confidence_mode
+
+            # Info sobre modo seleccionado
+            modo_info = {
+                'conservative': '✅ Modo seguro: Minimiza falsos positivos pero puede perder algunos datos sensibles',
+                'standard': '✅ Modo balanceado: Óptimo para la mayoría de casos',
+                'aggressive': '⚠️ Modo exhaustivo: Detecta más pero puede tener más falsos positivos'
+            }
+            st.info(modo_info.get(confidence_mode, ''))
+
         with col2:
             st.subheader("📊 Resumen")
 
@@ -442,7 +467,9 @@ with tab2:
         st.divider()
         if st.button("🚀 Anonimizar", type="primary", use_container_width=True):
             try:
-                anonymizer = DataAnonymizer()
+                # MEJORA v3.2: Usar modo seleccionado
+                confidence_mode = st.session_state.get('confidence_mode', 'standard')
+                anonymizer = DataAnonymizer(confidence_mode=confidence_mode)
 
                 # Debug: mostrar qué columnas se van a anonimizar
                 cols_info = st.session_state.columns_to_anonimize if st.session_state.columns_to_anonimize else df.columns.tolist()
@@ -566,6 +593,15 @@ with tab3:
 
         # Estadísticas
         st.markdown("<h3 style='text-align: center; color: #667eea;'>📊 Resumen de Anonimización</h3>", unsafe_allow_html=True)
+
+        # MEJORA v3.2: Mostrar modo utilizado
+        modo_utilizado = anonymizer.get_confidence_mode()
+        modo_emojis = {
+            'conservative': '🛡️ Conservador',
+            'standard': '⚖️ Estándar',
+            'aggressive': '🔍 Agresivo'
+        }
+        st.info(f"**Modo utilizado:** {modo_emojis.get(modo_utilizado, modo_utilizado)} ({anonymizer.min_confidence * 100:.0f}% confianza)")
 
         stats = {
             "Personas": anonymizer.counter.get('person', 0),
