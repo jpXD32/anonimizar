@@ -3,7 +3,8 @@
 import React from 'react'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { CheckCircle2, Columns3, Database, Play, RotateCcw, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Columns3, Database, Play, RotateCcw, ShieldCheck, Shield, Search, Zap } from 'lucide-react'
+import { useAnonymizerStore } from '@/store/anonymizer.store'
 
 interface ColumnSelectorProps {
   columns: string[]
@@ -22,6 +23,7 @@ export function ColumnSelector({
   onSelectAll,
   onProcessing,
 }: ColumnSelectorProps) {
+  const store = useAnonymizerStore()
   const selectedCount = selectAll ? columns.length : selectedColumns.length
   const hasSelection = selectedCount > 0
 
@@ -48,6 +50,30 @@ export function ColumnSelector({
     onSelectAll(false)
     onSelectColumns([])
   }
+
+  const modes = [
+    {
+      id: 'conservative',
+      label: '🛡️ Conservador',
+      subLabel: '95% - Máxima precisión',
+      description: 'Minimiza falsos positivos. Ideal cuando necesitas máxima certeza.',
+      icon: Shield,
+    },
+    {
+      id: 'standard',
+      label: '⚖️ Estándar',
+      subLabel: '90% - Balance óptimo',
+      description: 'Equilibrio perfecto. Recomendado para la mayoría de casos.',
+      icon: CheckCircle2,
+    },
+    {
+      id: 'aggressive',
+      label: '🔍 Agresivo',
+      subLabel: '80% - Máxima detección',
+      description: 'Detecta más datos pero puede tener falsos positivos.',
+      icon: Zap,
+    },
+  ]
 
   return (
     <section className="overflow-hidden bg-white/90 dark:bg-slate-950/90">
@@ -88,6 +114,47 @@ export function ColumnSelector({
       </header>
 
       <div className="space-y-5 p-5">
+        {/* Selector de Modo de Anonimización */}
+        <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+          <h3 className="text-sm font-black text-slate-950 dark:text-white">
+            ⚙️ Nivel de Detección
+          </h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Elige qué tan sensible debe ser el detector de datos sensibles.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {modes.map((mode) => {
+              const ModeIcon = mode.icon
+              const isSelected = store.confidenceMode === mode.id
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => store.setConfidenceMode(mode.id as any)}
+                  className={`rounded-lg border-2 px-3 py-2.5 text-left transition-all ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-100/80 shadow-sm ring-2 ring-blue-400/30 dark:border-blue-400 dark:bg-blue-950/50 dark:ring-blue-500/30'
+                      : 'border-blue-200/60 bg-white/60 hover:border-blue-300 hover:bg-blue-50/50 dark:border-blue-900/30 dark:bg-slate-950/30 dark:hover:bg-blue-950/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <ModeIcon className={`h-4 w-4 ${isSelected ? 'text-blue-600 dark:text-blue-300' : 'text-blue-500'}`} />
+                    <span className={`font-bold ${isSelected ? 'text-blue-900 dark:text-blue-100' : 'text-blue-800 dark:text-blue-200'}`}>
+                      {mode.label}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs font-bold text-blue-600 dark:text-blue-300">
+                    {mode.subLabel}
+                  </p>
+                  <p className="mt-1 text-xs text-blue-700/70 dark:text-blue-200/60">
+                    {mode.description}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
             <Database className="h-4 w-4 text-primary-600" />

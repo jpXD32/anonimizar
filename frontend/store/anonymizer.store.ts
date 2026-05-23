@@ -13,6 +13,7 @@ export interface AnonymizerState {
   selectedColumns: string[]
   selectAll: boolean
   saveMappings: boolean
+  confidenceMode: 'conservative' | 'standard' | 'aggressive'
   previousMappings: Record<string, string> | null
 
   // UI State
@@ -38,6 +39,7 @@ export interface AnonymizerState {
   setSelectedColumns: (columns: string[]) => void
   setSelectAll: (value: boolean) => void
   setSaveMappings: (value: boolean) => void
+  setConfidenceMode: (mode: 'conservative' | 'standard' | 'aggressive') => void
   setCurrentStep: (step: 1 | 2 | 3 | 4) => void
   startProcessing: () => void
   updateProgress: (progress: number, status: string) => void
@@ -64,6 +66,7 @@ const initialState = {
   selectedColumns: [],
   selectAll: false,
   saveMappings: true,
+  confidenceMode: 'standard' as const,
   previousMappings: null,
   currentStep: 1 as const,
   isProcessing: false,
@@ -112,6 +115,8 @@ export const useAnonymizerStore = create<AnonymizerState>((set) => ({
     })),
 
   setSaveMappings: (value) => set({ saveMappings: value }),
+
+  setConfidenceMode: (mode) => set({ confidenceMode: mode }),
 
   setCurrentStep: (step) => set({ currentStep: step }),
 

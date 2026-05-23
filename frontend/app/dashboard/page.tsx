@@ -105,7 +105,8 @@ export default function DashboardPage() {
       const response = await apiClient.anonymizeFile(
         store.uploadedFile,
         columnsToProcess,
-        store.saveMappings
+        store.saveMappings,
+        store.confidenceMode
       )
 
       const anonymizedArray = response.anonymized_data.map(row =>
@@ -304,6 +305,18 @@ export default function DashboardPage() {
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{stat.label}</p>
                     </div>
                   ))}
+                </div>
+
+                {/* Modo de Confianza Utilizado */}
+                <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                  <p className="text-xs font-black uppercase text-blue-600 dark:text-blue-300">
+                    Nivel de Detección Utilizado
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-slate-950 dark:text-white">
+                    {store.confidenceMode === 'conservative' && '🛡️ Conservador (95%) - Máxima precisión'}
+                    {store.confidenceMode === 'standard' && '⚖️ Estándar (90%) - Balance óptimo'}
+                    {store.confidenceMode === 'aggressive' && '🔍 Agresivo (80%) - Máxima detección'}
+                  </p>
                 </div>
               </section>
 
