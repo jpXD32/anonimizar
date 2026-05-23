@@ -5,3 +5,4 @@ openpyxl>=3.10.0
 python-dotenv>=1.0.0
 spacy>=3.5.0
 Werkzeug==2.3.7
+cryptography>=41.0.0

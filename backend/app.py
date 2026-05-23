@@ -5,6 +5,7 @@ import logging
 import pandas as pd
 import time
 import uuid
+import base64
 from io import StringIO, BytesIO
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file
@@ -12,8 +13,12 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import tempfile
 
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives import hashes
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from anonymizer import DataAnonymizer
+from audit import log_audit
 
 app = Flask(__name__)
 
@@ -125,6 +130,24 @@ def read_file(filepath):
     return pd.read_excel(filepath, dtype=str, keep_default_na=False)
 
 
+def get_cipher_for_result(result_id):
+    """Genera cipher determinístico basado en result_id para descifrar archivos en caché"""
+    try:
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+
+        kdf = PBKDF2(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=b'anonimizador-sec-salt-v1',
+            iterations=100000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(result_id.encode()))
+        return Fernet(key)
+    except Exception as e:
+        logger.error(f'Error generando cipher: {e}')
+        raise
+
+
 def cleanup_cached_results():
     """Elimina resultados temporales expirados."""
     now = time.monotonic()
@@ -140,18 +163,51 @@ def cleanup_cached_results():
 
 
 def cache_result_file(df, filename):
-    """Guarda un resultado anonimizado para descarga posterior."""
+    """Guarda un resultado anonimizado CIFRADO para descarga posterior."""
     cleanup_cached_results()
     result_id = uuid.uuid4().hex
     safe_name = secure_filename(filename) or 'anonymized-data.xlsx'
-    output_path = Path(tempfile.gettempdir()) / f'anonymized-{result_id}.xlsx'
-    df.to_excel(output_path, index=False)
-    RESULT_CACHE[result_id] = {
-        'path': str(output_path),
-        'filename': safe_name,
-        'created_at': time.monotonic(),
-    }
-    return result_id
+
+    try:
+        # Guardar en archivo temporal sin cifrar
+        temp_unencrypted = Path(tempfile.gettempdir()) / f'temp-{result_id}.xlsx'
+        df.to_excel(temp_unencrypted, index=False)
+
+        # Leer, cifrar, guardar
+        cipher = get_cipher_for_result(result_id)
+        with open(temp_unencrypted, 'rb') as f:
+            original_data = f.read()
+        encrypted_data = cipher.encrypt(original_data)
+
+        # Guardar archivo cifrado con extensión .enc
+        output_path = Path(tempfile.gettempdir()) / f'anonymized-{result_id}.xlsx.enc'
+        with open(output_path, 'wb') as f:
+            f.write(encrypted_data)
+
+        # Limpiar temporal no-cifrado
+        temp_unencrypted.unlink(missing_ok=True)
+
+        # Guardar metadata
+        RESULT_CACHE[result_id] = {
+            'path': str(output_path),
+            'filename': safe_name,
+            'created_at': time.monotonic(),
+        }
+
+        logger.info(f'[SECURITY] Archivo cifrado en caché: {result_id}')
+        return result_id
+
+    except Exception as e:
+        logger.error(f'[SECURITY] Error cifrando archivo en caché: {e}')
+        # Fallback: guardar sin cifrar (no ideal pero funciona)
+        output_path = Path(tempfile.gettempdir()) / f'anonymized-{result_id}.xlsx'
+        df.to_excel(output_path, index=False)
+        RESULT_CACHE[result_id] = {
+            'path': str(output_path),
+            'filename': safe_name,
+            'created_at': time.monotonic(),
+        }
+        return result_id
 
 
 @app.route('/api/health', methods=['GET'])
@@ -208,6 +264,9 @@ def preview_file():
 
 @app.route('/api/anonymize', methods=['POST'])
 def anonymize():
+    start_time = time.time()
+    ip_address = request.remote_addr or '0.0.0.0'
+
     try:
         if 'file' not in request.files:
             return error_response('No file provided', 400)
@@ -268,6 +327,22 @@ def anonymize():
                     413,
                 )
 
+            # ✅ LOG AUDITORÍA: Éxito
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            log_audit(
+                event_type='anonymize_success',
+                ip_address=ip_address,
+                file_name=file.filename,
+                file_size=len(file.read()) if hasattr(file, 'read') else 0,
+                columns_count=len(df.columns),
+                rows_count=len(df),
+                confidence_mode=confidence_mode,
+                statistics=stats,
+                result_id=result_download_id,
+                processing_time_ms=processing_time_ms,
+                status='success'
+            )
+
             return jsonify({
                 'status': 'success',
                 'anonymized_data': anonymized_data,
@@ -285,10 +360,39 @@ def anonymize():
             os.unlink(tmp_path)
 
     except TimeoutError:
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        log_audit(
+            event_type='anonymize_error',
+            ip_address=ip_address,
+            file_name=request.files.get('file', {}).filename if 'file' in request.files else 'unknown',
+            status='error',
+            error_message='Processing timeout exceeded',
+            processing_time_ms=processing_time_ms,
+        )
         return error_response('Processing timeout exceeded', 408)
+
     except (json.JSONDecodeError, ValueError) as e:
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        log_audit(
+            event_type='anonymize_error',
+            ip_address=ip_address,
+            file_name=request.files.get('file', {}).filename if 'file' in request.files else 'unknown',
+            status='error',
+            error_message=str(e),
+            processing_time_ms=processing_time_ms,
+        )
         return error_response(str(e), 400)
-    except Exception:
+
+    except Exception as e:
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        log_audit(
+            event_type='anonymize_error',
+            ip_address=ip_address,
+            file_name=request.files.get('file', {}).filename if 'file' in request.files else 'unknown',
+            status='error',
+            error_message=str(e),
+            processing_time_ms=processing_time_ms,
+        )
         logger.exception('Error anonymizing file')
         return error_response('Error anonymizing file', 500)
 
@@ -353,28 +457,90 @@ def download_excel():
 
 @app.route('/api/download/result/<result_id>/<file_format>', methods=['GET'])
 def download_cached_result(result_id, file_format):
-    """Descarga un resultado anonimizado guardado temporalmente."""
+    """Descarga un resultado anonimizado guardado temporalmente (DESCIFRADO)."""
+    ip_address = request.remote_addr or '0.0.0.0'
+
     try:
         cleanup_cached_results()
         metadata = RESULT_CACHE.get(result_id)
         if not metadata:
+            log_audit(
+                event_type='download_error',
+                ip_address=ip_address,
+                result_id=result_id,
+                status='error',
+                error_message='Result expired or not found'
+            )
             return error_response('Processed result expired or not found', 404)
 
         source_path = Path(metadata['path'])
         if not source_path.exists():
             RESULT_CACHE.pop(result_id, None)
+            log_audit(
+                event_type='download_error',
+                ip_address=ip_address,
+                result_id=result_id,
+                status='error',
+                error_message='Result file not found on disk'
+            )
             return error_response('Processed result expired or not found', 404)
 
+        # ✅ DESENCRIPTAR archivo
+        try:
+            cipher = get_cipher_for_result(result_id)
+            with open(source_path, 'rb') as f:
+                encrypted_data = f.read()
+            decrypted_data = cipher.decrypt(encrypted_data)
+            logger.info(f'[SECURITY] Archivo desencriptado: {result_id}')
+        except InvalidToken:
+            log_audit(
+                event_type='download_error',
+                ip_address=ip_address,
+                result_id=result_id,
+                status='error',
+                error_message='Decryption failed: Invalid token'
+            )
+            return error_response('Failed to decrypt file', 500)
+        except Exception as e:
+            logger.error(f'[SECURITY] Error desencriptando: {e}')
+            log_audit(
+                event_type='download_error',
+                ip_address=ip_address,
+                result_id=result_id,
+                status='error',
+                error_message=f'Decryption error: {str(e)}'
+            )
+            return error_response('Error decrypting file', 500)
+
+        # Enviar archivo según formato
         if file_format == 'excel':
+            # ✅ LOG AUDITORÍA: Descarga exitosa
+            log_audit(
+                event_type='download_success',
+                ip_address=ip_address,
+                result_id=result_id,
+                file_format='excel',
+                status='success'
+            )
+
             return send_file(
-                source_path,
+                BytesIO(decrypted_data),
                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 as_attachment=True,
                 download_name='anonymized-data.xlsx'
             ), 200
 
         if file_format == 'csv':
-            df = pd.read_excel(source_path, dtype=str, keep_default_na=False)
+            # ✅ LOG AUDITORÍA: Descarga exitosa
+            log_audit(
+                event_type='download_success',
+                ip_address=ip_address,
+                result_id=result_id,
+                file_format='csv',
+                status='success'
+            )
+
+            df = pd.read_excel(BytesIO(decrypted_data), dtype=str, keep_default_na=False)
             buffer = StringIO()
             df.to_csv(buffer, index=False)
             buffer.seek(0)
@@ -385,10 +551,24 @@ def download_cached_result(result_id, file_format):
                 download_name='anonymized-data.csv'
             ), 200
 
+        log_audit(
+            event_type='download_error',
+            ip_address=ip_address,
+            result_id=result_id,
+            status='error',
+            error_message='Invalid download format'
+        )
         return error_response('Invalid download format', 400)
 
-    except Exception:
+    except Exception as e:
         logger.exception('Error downloading cached result')
+        log_audit(
+            event_type='download_error',
+            ip_address=ip_address,
+            result_id=result_id,
+            status='error',
+            error_message=str(e)
+        )
         return error_response('Error downloading result', 500)
 
 
