@@ -70,7 +70,7 @@ class DataAnonymizer:
         # NOMBRES COMUNES + DIMINUTIVOS
         self.common_names = {
             'sofía', 'valentina', 'isabella', 'camila', 'valeria', 'martina',
-            'lucía', 'emma', 'victoria', 'elena', 'gabriela', 'daniela',
+            'alexia', 'lucia', 'lucía', 'emma', 'victoria', 'elena', 'gabriela', 'daniela',
             'maría', 'amelia', 'ana', 'catalina', 'julieta', 'aitana',
             'ximena', 'luna', 'sara', 'adriana', 'paula', 'emilia', 'carla', 'clara',
             'miranda', 'rocío', 'laura', 'andrea', 'zoe', 'alba', 'olivia',
@@ -79,13 +79,13 @@ class DataAnonymizer:
             'sofíta', 'sofi', 'valentinita', 'camilita', 'marianita', 'fernandita',
             'judita', 'judit', 'gabrielita', 'sandrita', 'sandri', 'paulita',
             'carlita', 'clarita', 'rocinita', 'laurita', 'andrecita', 'andreita',
-            'isabela', 'isabelita',
+            'isabela', 'isabelita', 'alexita',
             # Nombres masculinos
             'mateo', 'santiago', 'sebastián', 'leonardo', 'matías',
             'martín', 'alejandro', 'lucas', 'nicolás', 'samuel',
             'benjamín', 'thiago', 'emiliano', 'diego', 'tomás',
             'joaquín', 'gabriel', 'david', 'miguel', 'isaac', 'pablo',
-            'ángel', 'adrián', 'bruno', 'juan', 'josé',
+            'ángel', 'adrián', 'bruno', 'juan', 'josé', 'gonzalo',
             'maximiliano', 'salvador', 'franco', 'andrés', 'rodrigo', 'enzo',
             'leo', 'pio', 'ivo', 'luis', 'joel', 'ari', 'aldo', 'roi', 'rui', 'omar',
             'damian', 'damián', 'dylan', 'cristopher', 'christopher',
