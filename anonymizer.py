@@ -125,8 +125,9 @@ class DataAnonymizer:
             'seremi de educación', 'departamento de educación', 'daem', 'dirección educacional',
         }
 
-        # MEJORA #6: DIMINUTIVOS ADICIONALES (mapa)
+        # MEJORA #6: DIMINUTIVOS ADICIONALES (mapa) + APODOS COMUNES
         self.diminutives_map = {
+            # Diminutivos tradicionales
             'juanito': 'juan', 'juanín': 'juan', 'juanillo': 'juan',
             'carlitos': 'carlos', 'carlín': 'carlos', 'carla': 'carlos',
             'pablito': 'pablo', 'pablinche': 'pablo', 'pablillo': 'pablo',
@@ -144,6 +145,17 @@ class DataAnonymizer:
             'franciscito': 'francisco', 'pancho': 'francisco', 'panchito': 'francisco',
             'robertito': 'roberto', 'robertillo': 'roberto',
             'enriqueta': 'enrique', 'enriquillo': 'enrique', 'quique': 'enrique',
+            # Apodos comunes (nuevo)
+            'pepe': 'josé', 'paquito': 'francisco', 'rafa': 'rafael',
+            'toni': 'antonio', 'lolo': 'lorenzo', 'chano': 'santiago',
+            'fer': 'fernando', 'dani': 'daniel', 'tere': 'teresa',
+            'lupe': 'guadalupe', 'manolo': 'manuel', 'paco': 'francisco',
+            'lili': 'liliana', 'katy': 'catalina', 'vicky': 'victoria',
+            'gaby': 'gabriela', 'laura': 'laurencia', 'toño': 'antonio',
+            'feo': 'filiberto', 'guille': 'guillermo', 'rico': 'ricardo',
+            'richi': 'ricardo', 'beto': 'alberto', 'nano': 'ignacio',
+            'memo': 'guillermo', 'coco': 'alejandro', 'mimi': 'maría',
+            'gema': 'gemma', 'checa': 'teresa', 'xica': 'francisca',
         }
 
     def _compile_patterns(self) -> Dict:
@@ -207,6 +219,14 @@ class DataAnonymizer:
                     r'(?i:amigo|amiga|colega|colega)\s+([\w]+(?:\s[\w]+)*)',
                 ],
             },
+
+            # MEJORA NUEVA: Apodos entre paréntesis y alias
+            'nicknames_in_parentheses': [
+                r'\b([A-Za-záéíóúñ]+)\s*\(([a-záéíóúñ\s]+)\)',  # "Juan (Juanito)" o "josé (pepe)"
+            ],
+            'alias_keywords': [
+                r'(?i:apodo|alias|conocid[oa]\s+como)\s+([a-záéíóúñ]+)',  # "apodo Pepe", "alias Juan"
+            ],
         }
 
     def _normalize_text(self, value: str) -> str:
@@ -308,8 +328,22 @@ class DataAnonymizer:
             for match in reversed(matches):
                 rut = match.group().strip()
                 # Validar contexto (no es artículo, página, etc.)
-                before = result[max(0, match.start()-20):match.start()].lower()
-                if not re.search(r'(artículo|página|fig|table|número|nº|n°)', before):
+                before = result[max(0, match.start()-30):match.start()].lower()
+
+                # Palabras que excluyen RUT
+                exclude_keywords = r'(artículo|página|fig|table|número|nº|n°|año|age|fecha)'
+                # Palabras que confirman RUT
+                rut_keywords = r'(rut|cedula|cédula|documento|identificación|id:?)'
+
+                # Si tiene palabra clave de RUT, es definitivamente RUT
+                has_rut_keyword = bool(re.search(rut_keywords, before))
+                # Si tiene palabra de exclusión y NO tiene palabra de RUT, saltar
+                has_exclude_keyword = bool(re.search(exclude_keywords, before))
+
+                # Detectar si es RUT: tiene palabra clave OR (no tiene exclusión Y tiene 8+ dígitos)
+                is_valid_rut = has_rut_keyword or (not has_exclude_keyword and len(rut.replace('.', '').replace('-', '').replace(' ', '')) >= 8)
+
+                if is_valid_rut:
                     result = result[:match.start()] + '<rut>' + result[match.end():]
                     self.counter['rut'] = self.counter.get('rut', 0) + 1
 
@@ -360,6 +394,40 @@ class DataAnonymizer:
             for match in reversed(matches):
                 result = result[:match.start()] + '<ubicacion>' + result[match.end():]
                 self.counter['location'] = self.counter.get('location', 0) + 1
+
+        # ========== 7.5. APODOS ENTRE PARÉNTESIS (NUEVO) ==========
+        # Detecta patrones como "Juan (Juanito)" o "josé (pepe)"
+        for pattern_str in self.compiled_patterns['nicknames_in_parentheses']:
+            pattern = re.compile(pattern_str, re.UNICODE)
+            matches = list(pattern.finditer(result))
+            for match in reversed(matches):
+                try:
+                    name1 = match.group(1).strip()
+                    name2 = match.group(2).strip()
+
+                    # Contar nombres válidos a reemplazar
+                    valid_names = 0
+                    if self._is_name_like(name1):
+                        valid_names += 1
+                    if self._is_name_like(name2):
+                        valid_names += 1
+
+                    # Si ambos son nombres válidos, reemplazar todo el match
+                    if valid_names == 2:
+                        # Reemplazar "Juan (Juanito)" con "<nombre> (<nombre>)"
+                        replacement = '<nombre> (<nombre>)'
+                        result = result[:match.start()] + replacement + result[match.end():]
+                        self.counter['person'] = self.counter.get('person', 0) + 2
+                    elif valid_names == 1:
+                        # Si solo uno es nombre, reemplazarlo
+                        if self._is_name_like(name1):
+                            result = result[:match.start(1)] + '<nombre>' + result[match.end(1):]
+                        else:
+                            # Reemplazar solo el apodo (name2)
+                            result = result[:match.start(2)] + '<nombre>' + result[match.end(2):]
+                        self.counter['person'] = self.counter.get('person', 0) + 1
+                except:
+                    pass
 
         # ========== 8. NOMBRES CON CONTEXTO ==========
         # MEJORA #4 + #5: Detectar nombres por contexto
