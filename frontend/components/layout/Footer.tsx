@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import {
@@ -10,6 +10,7 @@ import {
   SearchCheck,
   ShieldCheck,
 } from 'lucide-react'
+import { useFooterGsapAnimations } from '@/hooks/useFooterGsapAnimations'
 
 const trustItems = [
   { title: 'Privacidad absoluta', text: 'Sin conexión a internet', Icon: ShieldCheck, color: 'text-primary-600 bg-primary-50' },
@@ -19,12 +20,21 @@ const trustItems = [
   { title: 'Formatos compatibles', text: 'Excel, CSV, PDF, SQL, JSON y más', Icon: FileText, color: 'text-teal-600 bg-teal-50' },
 ]
 
-export function Footer() {
+type FooterProps = {
+  className?: string
+}
+
+/**
+ * Renderiza el pie de página informativo del producto.
+ */
+export function Footer({ className = '' }: FooterProps) {
+  const footerRef = useFooterGsapAnimations()
+
   return (
-    <footer className="relative overflow-hidden bg-transparent px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+    <footer ref={footerRef} className={`relative overflow-hidden bg-slate-50 px-4 pb-3 pt-3 dark:bg-slate-950 sm:px-6 lg:px-8 ${className}`}>
       <div className="mx-auto max-w-6xl 2xl:max-w-[1800px]">
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/88 p-5 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-          <div className="absolute right-8 top-3 hidden h-24 w-28 opacity-80 2xl:block">
+        <div data-footer-panel className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/88 p-5 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/88 dark:shadow-[0_22px_70px_rgba(0,0,0,0.34)]">
+          <div data-footer-orbit className="absolute right-8 top-3 hidden h-24 w-28 opacity-80 2xl:block">
             <div className="absolute right-6 top-2 h-20 w-16 rounded-2xl border border-primary-100 bg-white shadow-2xl shadow-primary-500/10">
               <div className="mx-3 mt-4 h-1.5 rounded-full bg-primary-300" />
               <div className="mx-3 mt-3 h-1.5 rounded-full bg-slate-200" />
@@ -36,7 +46,7 @@ export function Footer() {
           </div>
 
           <div className="relative grid gap-8 md:grid-cols-[1.2fr_0.55fr_0.7fr_0.6fr] md:items-start 2xl:pr-32">
-            <div className="max-w-lg">
+            <div data-footer-animate className="max-w-lg">
               <div className="mb-3 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 shadow-sm dark:bg-primary-950/40 dark:text-primary-300">
                   <ShieldCheck className="h-5 w-5" />
@@ -51,7 +61,7 @@ export function Footer() {
               </p>
             </div>
 
-            <nav aria-label="Producto">
+            <nav data-footer-animate aria-label="Producto">
               <h4 className="text-xs font-black uppercase tracking-wide text-slate-950 dark:text-white">Producto</h4>
               <ul className="mt-3 space-y-2 text-sm">
                 <li>
@@ -64,15 +74,10 @@ export function Footer() {
                     Ayuda
                   </Link>
                 </li>
-                <li>
-                  <Link href="/docs" className="text-slate-600 transition-colors hover:text-primary-600 dark:text-slate-400">
-                    Documentación
-                  </Link>
-                </li>
               </ul>
             </nav>
 
-            <div>
+            <div data-footer-animate>
               <h4 className="text-xs font-black uppercase tracking-wide text-slate-950 dark:text-white">Flujo</h4>
               <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-400">
                 <li className="flex items-center gap-2">
@@ -86,7 +91,7 @@ export function Footer() {
               </ul>
             </div>
 
-            <div>
+            <div data-footer-animate>
               <h4 className="text-xs font-black uppercase tracking-wide text-slate-950 dark:text-white">Proyecto</h4>
               <a
                 href="https://github.com"
@@ -103,9 +108,9 @@ export function Footer() {
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {trustItems.map((item) => (
-            <div key={item.title} className="flex items-center gap-3 rounded-xl bg-white/75 p-3 shadow-sm shadow-slate-900/5 backdrop-blur dark:bg-slate-950/55">
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.color}`}>
-                <item.Icon className="h-5 w-5" />
+            <div key={item.title} data-footer-trust className="flex min-h-[56px] items-center gap-3 rounded-xl border border-slate-200/70 bg-white/75 px-3 py-2 shadow-sm shadow-slate-900/5 backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/78 dark:shadow-[0_14px_44px_rgba(0,0,0,0.24)]">
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.color}`}>
+                <item.Icon className="h-4 w-4" />
               </span>
               <div className="min-w-0">
                 <p className="truncate text-xs font-black text-slate-950 dark:text-white 2xl:text-sm">{item.title}</p>
@@ -118,3 +123,4 @@ export function Footer() {
     </footer>
   )
 }
+

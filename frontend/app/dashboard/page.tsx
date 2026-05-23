@@ -1,6 +1,6 @@
-'use client'
+﻿'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
 import { FileUpload } from '@/components/anonymizer/FileUpload'
@@ -10,11 +10,10 @@ import { Button } from '@/components/ui/Button'
 import { useAnonymizerStore } from '@/store/anonymizer.store'
 import {
   BadgeCheck,
-  ChevronDown,
   CheckCircle2,
   Download,
   FileUp,
-  HelpCircle,
+  ShieldX,
   Mail,
   MapPin,
   Phone,
@@ -35,9 +34,37 @@ const stepMeta = [
   { title: 'Descarga resultados', description: 'Guarda el archivo anonimizado y sus mapeos.', Icon: Download },
 ]
 
+/**
+ * Estima la duracion visible del procesamiento segun volumen de datos.
+ */
+function estimateProcessingMs(rowCount: number, columnCount: number, fileSize: number) {
+  const rowWork = Math.max(rowCount, 1) * Math.max(columnCount, 1) * 3.2
+  const fileWork = fileSize / 1800
+  return Math.min(Math.max(9000, rowWork + fileWork), 540000)
+}
+
+/**
+ * Calcula un porcentaje de avance que no simula finalizacion anticipada.
+ */
+function calculateProcessingProgress(elapsedMs: number, estimatedMs: number) {
+  const ratio = Math.min(elapsedMs / estimatedMs, 1)
+  const easedRatio = 1 - Math.pow(1 - ratio, 1.35)
+  return Math.min(8 + Math.floor(easedRatio * 82), 90)
+}
+
+/**
+ * Describe la etapa actual del procesamiento visible.
+ */
+function getProcessingStatus(progress: number) {
+  if (progress < 22) return 'Validando estructura del archivo...'
+  if (progress < 45) return 'Detectando datos sensibles...'
+  if (progress < 72) return 'Anonimizando relatos y columnas seleccionadas...'
+  if (progress < 90) return 'Generando resultado descargable...'
+  return 'Esperando confirmacion del backend...'
+}
+
 export default function DashboardPage() {
   const store = useAnonymizerStore()
-  const [showHelp, setShowHelp] = useState(false)
   const current = stepMeta[store.currentStep - 1]
   const CurrentIcon = current.Icon
 
@@ -46,7 +73,9 @@ export default function DashboardPage() {
   }
 
   const handleProcessing = async () => {
-    if (store.selectedColumns.length === 0) {
+    const columnsToProcess = store.selectAll ? store.fileColumns : store.selectedColumns
+
+    if (columnsToProcess.length === 0) {
       store.setError('Selecciona al menos una columna para anonimizar')
       return
     }
@@ -57,11 +86,25 @@ export default function DashboardPage() {
     }
 
     store.startProcessing()
+    store.updateProgress(8, 'Preparando archivo y columnas...')
+    const startedAt = Date.now()
+    const estimatedMs = estimateProcessingMs(
+      store.fileData?.length || 0,
+      columnsToProcess.length,
+      store.uploadedFile.size
+    )
+    const progressTimer = window.setInterval(() => {
+      const elapsedMs = Date.now() - startedAt
+      const progress = calculateProcessingProgress(elapsedMs, estimatedMs)
+      const status = getProcessingStatus(progress)
+
+      store.updateProgress(progress, status)
+    }, 1000)
 
     try {
       const response = await apiClient.anonymizeFile(
         store.uploadedFile,
-        store.selectedColumns,
+        columnsToProcess,
         store.saveMappings
       )
 
@@ -69,14 +112,30 @@ export default function DashboardPage() {
         response.columns.map(col => row[col])
       )
 
-      store.finishProcessing(anonymizedArray, response.statistics, response.mappings)
+      window.clearInterval(progressTimer)
+      store.updateProgress(96, 'Finalizando anonimizacion...')
+      store.finishProcessing(
+        anonymizedArray,
+        response.statistics,
+        response.mappings,
+        response.columns,
+        response.result_download_id || null,
+        Boolean(response.result_truncated)
+      )
     } catch (error) {
+      window.clearInterval(progressTimer)
       store.setError(error instanceof Error ? error.message : 'Error durante el procesamiento')
     }
   }
 
   const handleDownloadCSV = async () => {
     try {
+      if (store.resultDownloadId) {
+        const blob = await apiClient.downloadCachedResult(store.resultDownloadId, 'csv')
+        downloadFile(blob, 'anonymized-data.csv')
+        return
+      }
+
       const blob = await apiClient.downloadCSV(
         store.anonymizedData?.map(row =>
           Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
@@ -90,6 +149,12 @@ export default function DashboardPage() {
 
   const handleDownloadExcel = async () => {
     try {
+      if (store.resultDownloadId) {
+        const blob = await apiClient.downloadCachedResult(store.resultDownloadId, 'excel')
+        downloadFile(blob, 'anonymized-data.xlsx')
+        return
+      }
+
       const blob = await apiClient.downloadExcel(
         store.anonymizedData?.map(row =>
           Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
@@ -113,12 +178,14 @@ export default function DashboardPage() {
   return (
     <>
       <Header />
-      <main className="premium-page-bg min-h-screen px-4 pb-10 pt-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <main className="premium-page-bg min-h-0 overflow-x-hidden px-4 pb-5 pt-40 text-slate-950 dark:text-white sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl space-y-5 2xl:max-w-[1500px]">
+          <section className="premium-3d-panel-clean relative overflow-hidden rounded-2xl border border-cyan-100/70 bg-white/82 p-5 shadow-[0_24px_80px_rgba(79,95,217,0.10)] backdrop-blur-2xl dark:border-slate-800/80 dark:bg-slate-950/82">
+            <div className="absolute -right-24 -top-24 h-52 w-52 rounded-full bg-cyan-200/40 blur-3xl dark:bg-cyan-950/30" />
+            <div className="absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-indigo-200/30 blur-3xl dark:bg-indigo-950/30" />
             <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
               <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300">
+                <div className="premium-depth-chip flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 shadow-sm dark:bg-primary-950/40 dark:text-primary-300">
                   <CurrentIcon className="h-6 w-6" />
                 </div>
                 <div>
@@ -134,7 +201,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
+              <div className="relative grid grid-cols-4 gap-2">
                 {stepMeta.map((step, index) => {
                   const stepNumber = index + 1
                   const active = stepNumber <= store.currentStep
@@ -143,16 +210,16 @@ export default function DashboardPage() {
                     <div key={step.title} className="min-w-0">
                       <div
                         className={`h-2 rounded-full transition-colors ${
-                          active ? 'bg-primary-600' : 'bg-slate-200 dark:bg-slate-800'
+                          active ? 'bg-gradient-to-r from-primary-600 via-blue-600 to-teal-500 shadow-[0_0_16px_rgba(79,95,217,0.28)]' : 'bg-slate-200 dark:bg-slate-800'
                         }`}
                       />
                       <div
-                        className={`mt-2 rounded-lg border px-3 py-2 text-center text-xs font-bold ${
+                        className={`mt-2 rounded-xl border px-3 py-2 text-center text-xs font-black shadow-sm backdrop-blur ${
                           selected
-                            ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900 dark:bg-primary-950/40 dark:text-primary-300'
+                            ? 'border-primary-200 bg-primary-50 text-primary-700 shadow-primary-500/10 dark:border-primary-900 dark:bg-primary-950/40 dark:text-primary-300'
                             : active
-                            ? 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300'
-                            : 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/60'
+                            ? 'border-slate-200 bg-white/80 text-slate-700 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300'
+                            : 'border-slate-200 bg-white/45 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40'
                         }`}
                       >
                         {stepNumber}
@@ -165,14 +232,14 @@ export default function DashboardPage() {
           </section>
 
           {store.currentStep === 1 && (
-            <div className="animate-fade-in">
-              <FileUpload onFileData={handleFileData} />
+            <div className="animate-fade-in premium-3d-stage mx-auto max-w-4xl">
+              <FileUpload onFileData={handleFileData} onError={store.setError} />
             </div>
           )}
 
           {store.currentStep === 2 && store.fileColumns.length > 0 && (
             <div className="space-y-5 animate-fade-in">
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <div className="overflow-hidden rounded-2xl border border-cyan-100/70 bg-white/86 shadow-[0_20px_70px_rgba(79,95,217,0.08)] backdrop-blur-2xl dark:border-slate-800 dark:bg-slate-950/86">
                 <ColumnSelector
                   columns={store.fileColumns}
                   selectedColumns={store.selectedColumns}
@@ -183,7 +250,7 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <div className="overflow-hidden rounded-2xl border border-cyan-100/70 bg-white/86 shadow-[0_20px_70px_rgba(79,95,217,0.08)] backdrop-blur-2xl dark:border-slate-800 dark:bg-slate-950/86">
                 <DataPreview
                   data={store.fileData}
                   columns={store.fileColumns}
@@ -208,7 +275,7 @@ export default function DashboardPage() {
 
           {store.currentStep === 4 && store.anonymizedData && (
             <div className="space-y-5 animate-fade-in">
-              <section className="rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm dark:border-emerald-900/60 dark:bg-slate-950">
+              <section className="rounded-2xl border border-emerald-200 bg-white/86 p-6 shadow-[0_20px_70px_rgba(16,185,129,0.10)] backdrop-blur-2xl dark:border-emerald-900/60 dark:bg-slate-950/86">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300">
                     <CheckCircle2 className="h-5 w-5" />
@@ -254,6 +321,11 @@ export default function DashboardPage() {
               <Button onClick={() => store.reset()} variant="secondary" fullWidth>
                 Comenzar de nuevo
               </Button>
+
+              <Button onClick={() => store.clearSensitiveData()} variant="danger" fullWidth>
+                <ShieldX className="h-4 w-4" />
+                Limpiar datos de la sesión
+              </Button>
             </div>
           )}
 
@@ -265,38 +337,6 @@ export default function DashboardPage() {
               closable
             />
           )}
-
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
-              onClick={() => setShowHelp(!showHelp)}
-            >
-              <span className="flex items-center gap-3 text-base font-bold text-slate-950 dark:text-white">
-                <HelpCircle className="h-5 w-5 text-primary-600" />
-                ¿Necesitas ayuda?
-              </span>
-              <ChevronDown
-                className={`h-5 w-5 text-slate-500 transition-transform ${showHelp ? 'rotate-180' : ''}`}
-              />
-            </button>
-            {showHelp && (
-              <div className="grid gap-4 border-t border-slate-200 px-5 py-5 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:text-slate-400 md:grid-cols-2">
-                <div>
-                  <h3 className="font-bold text-slate-950 dark:text-white">¿Qué datos se anonimizan?</h3>
-                  <p className="mt-1">
-                    Nombres, RUTs chilenos, emails, teléfonos, ubicaciones y organizaciones.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-950 dark:text-white">¿Es reversible?</h3>
-                  <p className="mt-1">
-                    Solo si conservas el archivo de mapeos. Guárdalo en un lugar seguro.
-                  </p>
-                </div>
-              </div>
-            )}
-          </section>
         </div>
       </main>
 
@@ -304,3 +344,4 @@ export default function DashboardPage() {
     </>
   )
 }
+

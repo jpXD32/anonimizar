@@ -14,6 +14,9 @@ import {
   Users,
 } from 'lucide-react'
 
+/**
+ * Renderiza una vista previa interactiva del proceso de anonimización.
+ */
 export function InteractiveDemoPreview() {
   const [progress, setProgress] = useState(49)
   const [stats, setStats] = useState({
@@ -77,18 +80,18 @@ export function InteractiveDemoPreview() {
   ]
 
   return (
-    <div className="relative hidden min-w-0 lg:block">
-      <div className="absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-blue-100/70 via-white to-teal-100/70 blur-2xl dark:from-blue-950/30 dark:via-slate-950 dark:to-teal-950/30" />
-      <div className="relative w-full max-w-[540px] overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 2xl:max-w-[820px]">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white/70 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/70">
+    <div data-hero-demo className="premium-3d-stage relative hidden min-w-0 lg:block">
+      <div className="absolute -inset-5 rounded-[2rem] bg-gradient-to-br from-blue-100/70 via-white to-teal-100/70 blur-2xl dark:from-blue-950/30 dark:via-slate-950 dark:to-teal-950/30" />
+      <div className="premium-3d-panel-clean relative w-full max-w-[500px] overflow-hidden rounded-2xl border border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 2xl:max-w-[720px]">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white/70 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/70">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 text-primary-600 shadow-sm dark:bg-primary-950/40 dark:text-primary-300">
+            <div className="premium-depth-chip flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 text-primary-600 shadow-sm dark:bg-primary-950/40 dark:text-primary-300">
               <FileText className="h-5 w-5" />
             </div>
             <div>
               <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Archivo actual</p>
-              <p className="text-base font-black text-slate-950 dark:text-white">denuncias_mayo.xlsx</p>
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">4 columnas sensibles detectadas</p>
+              <p className="text-sm font-black text-slate-950 dark:text-white 2xl:text-base">denuncias_mayo.xlsx</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 2xl:text-sm">4 columnas sensibles detectadas</p>
             </div>
           </div>
           <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
@@ -96,10 +99,10 @@ export function InteractiveDemoPreview() {
           </span>
         </div>
 
-        <div className="p-3.5">
+        <div className="p-3">
           <div className="flex items-start justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-950/40">
+              <div className="premium-depth-chip flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-950/40">
                 {isProcessing ? (
                   <Clock3 className="h-5 w-5 text-primary-600" />
                 ) : (
@@ -110,7 +113,7 @@ export function InteractiveDemoPreview() {
                 <p className="text-sm font-black text-slate-600 dark:text-slate-400">
                   {isProcessing ? 'Anonimizando archivo' : 'Archivo listo'}
                 </p>
-                <p className="text-3xl font-black tracking-tight text-primary-600 dark:text-primary-300">
+                <p className="text-2xl font-black tracking-tight text-primary-600 dark:text-primary-300 2xl:text-3xl">
                   {Math.min(Math.round(progress), 100)}%
                 </p>
               </div>
@@ -125,26 +128,26 @@ export function InteractiveDemoPreview() {
 
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200 shadow-inner dark:bg-slate-800">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-primary-600 via-blue-600 to-teal-500 transition-all duration-500"
+              className="h-full rounded-full bg-gradient-to-r from-primary-600 via-blue-600 to-teal-500 shadow-[0_0_18px_rgba(79,95,217,0.42)] transition-all duration-500"
               style={{ width: `${Math.min(progress, 100)}%` }}
             />
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="mt-2.5 grid grid-cols-2 gap-1.5 xl:grid-cols-4">
             {statCards.map((stat) => (
-              <div key={stat.label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-2.5 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+              <div key={stat.label} className="premium-3d-card min-w-0 rounded-xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">{stat.label}</p>
                   <stat.Icon className={`h-4 w-4 ${stat.color}`} />
                 </div>
-                <p className={`mt-1.5 text-xl font-black ${stat.color}`}>{stat.value}</p>
+                <p className={`mt-1 text-lg font-black 2xl:text-xl ${stat.color}`}>{stat.value}</p>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{stat.suffix}</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-            <div className="grid grid-cols-[1fr_auto_1fr_auto] bg-slate-50 px-5 py-2 text-xs font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+          <div className="premium-3d-card mt-2.5 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-[1fr_auto_1fr_auto] bg-slate-50 px-4 py-1.5 text-xs font-black uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <span>Original</span>
               <span />
               <span>Anonimizado</span>
@@ -155,7 +158,7 @@ export function InteractiveDemoPreview() {
               ['12.345.678-9', 'RUT_001'],
               ['juan@mail.com', 'correo_001@local'],
             ].map(([source, target]) => (
-              <div key={source} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-3 border-t border-slate-200 px-5 py-2 text-sm dark:border-slate-800">
+              <div key={source} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-3 border-t border-slate-200 px-4 py-1.5 text-sm dark:border-slate-800">
                 <span className="truncate font-medium text-slate-600 dark:text-slate-400">{source}</span>
                 <span className="text-slate-300 dark:text-slate-700">-&gt;</span>
                 <span className="truncate font-black text-slate-950 dark:text-white">{target}</span>
@@ -164,7 +167,7 @@ export function InteractiveDemoPreview() {
             ))}
           </div>
 
-          <button className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 py-2.5 text-base font-black text-primary-700 transition-all hover:bg-primary-100 active:scale-[0.99] dark:border-primary-900 dark:bg-primary-950/40 dark:text-primary-300">
+          <button className="premium-3d-card mt-2.5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 py-2.5 text-base font-black text-primary-700 transition-all hover:bg-primary-100 active:scale-[0.99] dark:border-primary-900 dark:bg-primary-950/40 dark:text-primary-300">
             {isProcessing ? <Pause className="h-4 w-4" /> : <Download className="h-4 w-4" />}
             {isProcessing ? 'Pausar proceso' : 'Descargar resultados'}
           </button>

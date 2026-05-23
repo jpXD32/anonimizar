@@ -1,0 +1,8 @@
+ * Serving Flask app 'app'
+ * Debug mode: off
+[ANON] Procesando columna: Relato  | narrativa=True | filas=4
+[ANON] Relato : 4/4 filas
+[ANON] Columna lista: Relato  | 0.00s
+[ANON] Procesando columna: Relato  | narrativa=True | filas=2
+[ANON] Relato : 2/2 filas
+[ANON] Columna lista: Relato  | 0.00s

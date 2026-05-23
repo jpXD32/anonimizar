@@ -6,6 +6,8 @@ export interface AnonymizerState {
   fileData: any[][] | null
   fileColumns: string[]
   anonymizedData: any[][] | null
+  resultDownloadId: string | null
+  resultTruncated: boolean
 
   // Configuration
   selectedColumns: string[]
@@ -39,8 +41,16 @@ export interface AnonymizerState {
   setCurrentStep: (step: 1 | 2 | 3 | 4) => void
   startProcessing: () => void
   updateProgress: (progress: number, status: string) => void
-  finishProcessing: (data: any[][], stats: any, mappings: Record<string, string>) => void
+  finishProcessing: (
+    data: any[][],
+    stats: any,
+    mappings: Record<string, string>,
+    columns?: string[],
+    resultDownloadId?: string | null,
+    resultTruncated?: boolean
+  ) => void
   setError: (error: string | null) => void
+  clearSensitiveData: () => void
   reset: () => void
 }
 
@@ -49,6 +59,8 @@ const initialState = {
   fileData: null,
   fileColumns: [],
   anonymizedData: null,
+  resultDownloadId: null,
+  resultTruncated: false,
   selectedColumns: [],
   selectAll: false,
   saveMappings: true,
@@ -78,8 +90,15 @@ export const useAnonymizerStore = create<AnonymizerState>((set) => ({
       uploadedFile: file || null,
       fileData: data,
       fileColumns: columns,
+      anonymizedData: null,
+      resultDownloadId: null,
+      resultTruncated: false,
+      mappings: {},
       selectedColumns: [],
       selectAll: false,
+      previousMappings: null,
+      statistics: initialState.statistics,
+      error: null,
       currentStep: 2,
     }),
 
@@ -110,9 +129,12 @@ export const useAnonymizerStore = create<AnonymizerState>((set) => ({
       processingStatus: status,
     }),
 
-  finishProcessing: (data, stats, mappings) =>
+  finishProcessing: (data, stats, mappings, columns, resultDownloadId = null, resultTruncated = false) =>
     set({
       anonymizedData: data,
+      fileColumns: columns || [],
+      resultDownloadId,
+      resultTruncated,
       statistics: stats,
       mappings,
       isProcessing: false,
@@ -123,6 +145,26 @@ export const useAnonymizerStore = create<AnonymizerState>((set) => ({
     }),
 
   setError: (error) => set({ error, isProcessing: false }),
+
+  clearSensitiveData: () =>
+    set({
+      uploadedFile: null,
+      fileData: null,
+      fileColumns: [],
+      anonymizedData: null,
+      resultDownloadId: null,
+      resultTruncated: false,
+      selectedColumns: [],
+      selectAll: false,
+      previousMappings: null,
+      mappings: {},
+      statistics: initialState.statistics,
+      processingProgress: 0,
+      processingStatus: '',
+      isProcessing: false,
+      currentStep: 1,
+      error: null,
+    }),
 
   reset: () => set(initialState),
 }))

@@ -78,9 +78,10 @@ export function DownloadOptions({
         </div>
 
         {mappingsCount > 0 && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
-            <p className="text-sm text-blue-900 dark:text-blue-100">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+            <p className="text-sm text-amber-900 dark:text-amber-100">
               Se generaron <strong>{mappingsCount.toLocaleString()}</strong> mapeos de anonimización.
+              Trátalos como datos sensibles: permiten relacionar valores anonimizados con originales.
             </p>
           </div>
         )}
