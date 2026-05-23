@@ -88,7 +88,7 @@ class DataAnonymizer:
             'ángel', 'adrián', 'bruno', 'juan', 'josé',
             'maximiliano', 'salvador', 'franco', 'andrés', 'rodrigo', 'enzo',
             'leo', 'pio', 'ivo', 'luis', 'joel', 'ari', 'aldo', 'roi', 'rui', 'omar',
-            'damian', 'damián',
+            'damian', 'damián', 'dylan', 'cristopher', 'christopher',
             # DIMINUTIVOS MASCULINOS
             'juanito', 'juanín', 'carlitos', 'carla', 'carlín', 'pablito', 'pedrito',
             'santiaguito', 'santi', 'carmelito', 'pepito', 'jorgito', 'lupito',
@@ -106,6 +106,7 @@ class DataAnonymizer:
             'riquelme', 'miranda', 'bravo', 'vera', 'molina', 'vega', 'campos',
             'huertas', 'huerta', 'espinosa', 'espinosa', 'salazar', 'salazar',
             'meza', 'mesa', 'fuente', 'fuentes', 'parra', 'paredes',
+            'pereira', 'echeverría', 'echeverria',
         }
 
         # MEJORA #2: INSTITUCIONES EDUCACIONALES
@@ -391,11 +392,34 @@ class DataAnonymizer:
                     pass
 
         # ========== 9. NOMBRES CAPITALIZADOS ==========
+        # Detecta: Nombre Capitali Capitalizado O Nombre con apellidos en minúsculas
         name_pattern = re.compile(
-            r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*\b'
+            r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*\b', re.UNICODE
         )
-        matches = list(name_pattern.finditer(result))
-        for match in reversed(matches):
+        # Patrón alternativo: Nombre Capitalizado + apellidos en minúsculas
+        name_pattern_with_lowercase = re.compile(
+            r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[a-záéíóúñ][a-záéíóúñ]+)+\b', re.UNICODE
+        )
+        # Buscar con ambos patrones, priorizando el patrón con minúsculas (más largo)
+        matches_pattern1 = list(name_pattern.finditer(result))
+        matches_pattern2 = list(name_pattern_with_lowercase.finditer(result))
+
+        # Combinar matches, prefiriendo los del patrón 2 (con minúsculas) si se superponen
+        all_matches = []
+        for m2 in matches_pattern2:
+            all_matches.append(m2)
+
+        for m1 in matches_pattern1:
+            # Verificar si este match está completamente contenido en alguno del patrón 2
+            is_contained = any(m2.start() <= m1.start() and m1.end() <= m2.end()
+                              for m2 in matches_pattern2)
+            if not is_contained:
+                all_matches.append(m1)
+
+        # Ordenar de atrás hacia adelante para evitar cambios de índices
+        matches = sorted(all_matches, key=lambda m: m.start(), reverse=True)
+
+        for match in matches:
             candidate = match.group().strip()
             if self._is_name_like(candidate):
                 excluded = {
