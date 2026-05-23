@@ -1,0 +1,129 @@
+═══════════════════════════════════════════════════════════════════
+  ANONIMIZADOR v3.2 - ESTRUCTURA DEL PROYECTO
+═══════════════════════════════════════════════════════════════════
+
+C:\Proyectos\anonimizar\
+│
+├── 📄 README.md                     👈 LEER PRIMERO
+├── 📄 PROJECT_STRUCTURE.txt         👈 Este archivo
+├── 📄 .gitignore
+├── 📄 .claude/ (config de desarrollo)
+│
+├── 🔴 anonymizer.py (39K)           👈 MOTOR PRINCIPAL v3.2
+│                                       - Patrones regex
+│                                       - Sistema de confianza
+│                                       - 20+ tipos de datos
+│
+├── 🟢 run_app.py                    👈 Script para iniciar
+│
+├── 📁 frontend/ (Next.js)           👈 localhost:3000 (PRINCIPAL UI)
+│   ├── app/
+│   │   ├── dashboard/page.tsx       👈 Paso 2,3,4 (configuración)
+│   │   ├── help/page.tsx
+│   │   └── layout.tsx
+│   │
+│   ├── components/anonymizer/
+│   │   ├── ColumnSelector.tsx       👈 ⭐ Selector de modo
+│   │   ├── FileUpload.tsx
+│   │   ├── ProcessingProgress.tsx
+│   │   └── ...
+│   │
+│   ├── store/
+│   │   └── anonymizer.store.ts      👈 Estado global (Zustand)
+│   │                                   - confidenceMode agregado
+│   │
+│   ├── lib/
+│   │   └── api.ts                   👈 Cliente API
+│   │                                   - anonymizeFile(confidence_mode)
+│   │
+│   ├── package.json                 👈 npm run dev
+│   └── next.config.js
+│
+├── 📁 backend/ (Flask)              👈 localhost:5000 (API REST)
+│   ├── app.py                       👈 Endpoints
+│   │                                   - POST /api/anonymize
+│   │                                   - POST /api/preview
+│   │                                   - POST /api/download/csv
+│   │
+│   ├── backend-debug.out.log        📊 Logs de progreso
+│   └── backend-debug.err.log        ⚠️  Logs de errores
+│
+├── 📁 scripts/                      👈 Utilidades
+│   ├── cli.py                       - Interfaz línea de comandos
+│   ├── demo.py                      - Demo/pruebas
+│   └── security_checks.py           - Validaciones
+│
+├── 📁 docs/                         👈 Documentación
+│   ├── MEJORAS_FASE2.md             - v3.2 features (7 mejoras)
+│   ├── STATUS_FINAL.md              - v2.0 status
+│   └── EJEMPLO_ANTES_DESPUES.md     - Use cases comparativos
+│
+└── 📁 _archive/                     ❌ ANTIGUO (NO USAR)
+    ├── anonymizer_v2.py             - Versión anterior
+    ├── app_streamlit.py             - Streamlit descontinuado
+    └── anonymizer.py.backup         - Respaldo
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 PUNTOS DE ENTRADA
+
+1️⃣  WEB (Recomendado)
+    → http://localhost:3000/
+    → Archivo: frontend/app/dashboard/page.tsx
+    → UI: ColumnSelector.tsx
+
+2️⃣  API REST
+    → http://localhost:5000/api/anonymize
+    → Archivo: backend/app.py
+    → Motor: anonymizer.py
+
+3️⃣  CLI
+    → python scripts/cli.py datos.csv
+    → Archivo: scripts/cli.py
+
+═══════════════════════════════════════════════════════════════════
+
+📝 FLUJO PRINCIPAL
+
+[Usuario sube archivo en localhost:3000]
+             ↓
+[Frontend envía POST /api/anonymize con confidence_mode]
+             ↓
+[Backend (Flask) recibe en backend/app.py]
+             ↓
+[Crea DataAnonymizer(confidence_mode=valor)]
+             ↓
+[anonymizer.py procesa con patrones regex]
+             ↓
+[Retorna JSON con datos anonimizados]
+             ↓
+[Frontend descarga CSV/Excel]
+
+═══════════════════════════════════════════════════════════════════
+
+🔑 CAMBIOS RECIENTES (Selector de Modo)
+
+Frontend:
+  ✅ frontend/store/anonymizer.store.ts → confidenceMode agregado
+  ✅ frontend/components/anonymizer/ColumnSelector.tsx → UI selector
+  ✅ frontend/lib/api.ts → pasar confidence_mode al backend
+  ✅ frontend/app/dashboard/page.tsx → mostrar modo usado
+
+Backend:
+  ✅ backend/app.py → recibir confidence_mode
+  ✅ anonymizer.py → ya soporta confidence_mode
+
+═══════════════════════════════════════════════════════════════════
+
+⚠️  IMPORTANTE
+
+❌ NO usar localhost:8501 (Streamlit antiguo)
+❌ NO editar archivos en _archive/
+✅ SÍ usar localhost:3000 (Next.js - PRINCIPAL)
+✅ SÍ usar localhost:5000 (Flask - Backend)
+
+═══════════════════════════════════════════════════════════════════
+Última actualización: 2026-05-23
+Versión: v3.2
+Estado: Producción
+═══════════════════════════════════════════════════════════════════
