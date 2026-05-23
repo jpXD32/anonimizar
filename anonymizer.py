@@ -64,6 +64,7 @@ class DataAnonymizer:
             'la serena', 'coquimbo', 'ovalle', 'los ángeles', 'talca', 'curicó',
             'linares', 'chillan', 'chillán', 'antofagasta', 'calama', 'copiapó',
             'iquique', 'punta arenas', 'stgo', 'stgo.', 'viña', 'vdm',
+            'esmeralda',
         }
 
         # NOMBRES COMUNES + DIMINUTIVOS
@@ -103,6 +104,8 @@ class DataAnonymizer:
             'ramírez', 'ramirez', 'carrasco', 'gómez', 'gomez', 'cortés', 'cortes',
             'herrera', 'núñez', 'nunez', 'jara', 'vergara', 'rivera', 'figueroa',
             'riquelme', 'miranda', 'bravo', 'vera', 'molina', 'vega', 'campos',
+            'huertas', 'huerta', 'espinosa', 'espinosa', 'salazar', 'salazar',
+            'meza', 'mesa', 'fuente', 'fuentes', 'parra', 'paredes',
         }
 
         # MEJORA #2: INSTITUCIONES EDUCACIONALES
@@ -195,9 +198,12 @@ class DataAnonymizer:
             # MEJORA #4: PALABRAS CLAVE CONTEXTUALES
             'context_markers': {
                 'person_indicators': [
-                    r'(?i:dice|mencion|reporta|indic|según|segun|afirma|declara|testigo)\s+([A-Za-záéíóúñ][a-záéíóúñ]*(?:\s[A-Za-záéíóúñ][a-záéíóúñ]*)?)',
-                    r'(?i:el|la)\s+(?i:estudiante|apoderado|apoderada|profesor|profesora|director|directora|inspector|inspectora|jefe|jefa|niño|niña|alumno|alumna)\s+([A-Za-záéíóúñ][a-záéíóúñ]*(?:\s[A-Za-záéíóúñ][a-záéíóúñ]*)?)',
-                    r'(?i:llamad[oa]|nombrad[oa]|conocid[oa]|identificad[oa])\s+(?i:como\s+)?([A-Za-záéíóúñ][a-záéíóúñ]*(?:\s[A-Za-záéíóúñ][a-záéíóúñ]*)?)',
+                    r'(?i:dice|mencion|reporta|indic|según|segun|afirma|declara|testigo)\s+([\w]+(?:\s[\w]+)*)',
+                    r'(?i:el|la)\s+(?i:estudiante|apoderado|apoderada|profesor|profesora|director|directora|inspector|inspectora|jefe|jefa|niño|niña|alumno|alumna)\s+([\w]+(?:\s[\w]+)*)',
+                    r'(?i:llamad[oa]|nombrad[oa]|conocid[oa]|identificad[oa])\s+(?i:como\s+)?([\w]+(?:\s[\w]+)*)',
+                    r'(?i:su)\s+(?i:hijo|hija|hermano|hermana|padre|madre|abuelo|abuela|primo|prima|tío|tía)\s+([\w]+(?:\s[\w]+)*)',
+                    r'(?i:compañero|compañera)\s+([\w]+(?:\s[\w]+)*)',
+                    r'(?i:amigo|amiga|colega|colega)\s+([\w]+(?:\s[\w]+)*)',
                 ],
             },
         }
@@ -270,7 +276,21 @@ class DataAnonymizer:
 
         parts = text.split()
         if len(parts) >= 2:
-            return all(part and part[0].isupper() for part in parts)
+            # Para nombres de múltiples palabras: al menos la primera parte debe ser un nombre
+            first_part_lower = self._normalize_text(parts[0])
+            if first_part_lower in self.common_names:
+                return True
+            # O todas las partes capitalizadas
+            if all(part and part[0].isupper() for part in parts):
+                return True
+            # O primera parte capitali yada y otras son apellidos comunes
+            if parts[0] and parts[0][0].isupper():
+                for part in parts[1:]:
+                    part_lower = self._normalize_text(part)
+                    if part_lower not in self.common_names:
+                        return False  # Alguna parte no es nombre
+                return True  # Todas las partes son nombres
+            return False
 
         return len(text) >= 3 and text[0].isupper()
 
@@ -343,7 +363,7 @@ class DataAnonymizer:
         # ========== 8. NOMBRES CON CONTEXTO ==========
         # MEJORA #4 + #5: Detectar nombres por contexto
         for pattern_str in self.compiled_patterns['context_markers']['person_indicators']:
-            pattern = re.compile(pattern_str)  # SIN re.IGNORECASE - ya usando (?i:...) en patrones
+            pattern = re.compile(pattern_str, re.UNICODE)  # re.UNICODE para soportar caracteres acentuados
             matches = list(pattern.finditer(result))
             for match in reversed(matches):
                 try:
@@ -372,7 +392,7 @@ class DataAnonymizer:
 
         # ========== 9. NOMBRES CAPITALIZADOS ==========
         name_pattern = re.compile(
-            r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+\b'
+            r'\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*\b'
         )
         matches = list(name_pattern.finditer(result))
         for match in reversed(matches):
