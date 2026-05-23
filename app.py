@@ -417,28 +417,28 @@ with tab2:
             )
             st.session_state.save_mapping = save_mapping
 
-            # MEJORA v3.2: Selector de modo de confianza
+            # MEJORA v3.2: Selector de modo de confianza (SIMPLIFICADO)
             st.divider()
             st.subheader("⚙️ Modo de Anonimización")
 
-            confidence_mode = st.radio(
+            confidence_mode = st.selectbox(
                 "Nivel de detección:",
                 options=['conservative', 'standard', 'aggressive'],
+                index=1,  # 'standard' por defecto
                 format_func=lambda x: {
-                    'conservative': '🛡️ Conservador (95% confianza) - Solo detecta con muy alta certeza',
-                    'standard': '⚖️ Estándar (90% confianza) - Balance entre detección y precisión',
-                    'aggressive': '🔍 Agresivo (80% confianza) - Máxima detección, tolera más falsos positivos'
+                    'conservative': '🛡️ Conservador (95%) - Baja detección, sin falsos positivos',
+                    'standard': '⚖️ Estándar (90%) - Balance óptimo',
+                    'aggressive': '🔍 Agresivo (80%) - Alta detección, más falsos positivos'
                 }.get(x, x),
-                value='standard',
                 help="Elige qué tan sensible debe ser el detector de datos sensibles"
             )
             st.session_state.confidence_mode = confidence_mode
 
             # Info sobre modo seleccionado
             modo_info = {
-                'conservative': '✅ Modo seguro: Minimiza falsos positivos pero puede perder algunos datos sensibles',
-                'standard': '✅ Modo balanceado: Óptimo para la mayoría de casos',
-                'aggressive': '⚠️ Modo exhaustivo: Detecta más pero puede tener más falsos positivos'
+                'conservative': '✅ **Modo Seguro**: Minimiza falsos positivos. Recomendado cuando necesitas máxima certeza.',
+                'standard': '✅ **Modo Balanceado**: Óptimo para la mayoría de casos. Recomendado.',
+                'aggressive': '⚠️ **Modo Exhaustivo**: Detecta más datos pero puede tener falsos positivos. Úsalo si necesitas máxima detección.'
             }
             st.info(modo_info.get(confidence_mode, ''))
 
