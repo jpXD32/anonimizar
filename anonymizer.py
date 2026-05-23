@@ -41,6 +41,7 @@ class DataAnonymizer:
             - 'aggressive' (0.80): Máxima detección, tolera más falsos positivos
         """
         self.counter = {}
+        self.mappings = {}
         self.confidence_mode = confidence_mode
 
         # Umbrales de confianza por modo

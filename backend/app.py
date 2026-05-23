@@ -236,12 +236,11 @@ def anonymize():
                 columns_to_anonymize = df.columns.tolist()
             columns_to_anonymize = validate_columns(columns_to_anonymize, df.columns.tolist())
 
-            anonymizer = DataAnonymizer(use_nlp=False, confidence_mode=confidence_mode)
+            anonymizer = DataAnonymizer(confidence_mode=confidence_mode)
 
             df_anonymized = anonymizer.anonymize_dataframe(
                 df,
                 columns_to_anonymize=columns_to_anonymize,
-                timeout_seconds=PROCESSING_TIMEOUT_SECONDS,
             )
 
             stats = {
