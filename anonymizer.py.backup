@@ -1,0 +1,969 @@
+﻿import pandas as pd
+import re
+from pathlib import Path
+from typing import Dict, List
+import json
+import time
+
+class DataAnonymizer:
+    def __init__(self, mapping_file: str = None, use_nlp: bool = True):
+        self.counter = {}
+        self.mappings = {}
+        self._mapping_terms_cache = {}
+        self.mapping_file = mapping_file
+        self.use_nlp = use_nlp
+
+        # Cargar modelo de spaCy si estÃ¡ disponible
+        self.nlp = None
+        if self.use_nlp:
+            try:
+                import spacy
+                self.nlp = spacy.load("es_core_news_sm")
+            except OSError:
+                print("[INFO] Descargando modelo de spaCy para espaÃ±ol...")
+                import subprocess
+                subprocess.check_call(["python", "-m", "spacy", "download", "es_core_news_sm"])
+                import spacy
+                self.nlp = spacy.load("es_core_news_sm")
+            except ImportError:
+                self.use_nlp = False
+
+        if mapping_file and Path(mapping_file).exists():
+            self.load_mappings(mapping_file)
+
+    def normalize_text(self, value: str) -> str:
+        """Normaliza texto para comparaciones sin acentos."""
+        if not isinstance(value, str):
+            return ''
+        value = value.replace('’', "'").replace('`', "'").replace('´', "'")
+        normalized = unicodedata.normalize('NFD', value.lower().strip())
+        return ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
+
+    def normalize_rut(self, value: str) -> str:
+        """Normaliza un RUT para mapeos consistentes."""
+        if not isinstance(value, str):
+            return ''
+        return re.sub(r'[^0-9kK]', '', value).upper()
+
+    def field_matches(self, field_type: str, keywords: List[str]) -> bool:
+        """Indica si el nombre de columna coincide con palabras clave."""
+        normalized = self.normalize_text(field_type)
+        return any(keyword in normalized for keyword in keywords)
+
+    def accent_insensitive_pattern(self, value: str) -> str:
+        """Crea un patron de busqueda tolerante a acentos."""
+        replacements = {
+            'a': '[aáàäâãAÁÀÄÂÃ]',
+            'e': '[eéèëêEÉÈËÊ]',
+            'i': '[iíìïîIÍÌÏÎ]',
+            'o': '[oóòöôõOÓÒÖÔÕ]',
+            'u': '[uúùüûUÚÙÜÛ]',
+            'n': '[nñNÑ]',
+        }
+        pieces = []
+        for char in value:
+            if char.isspace():
+                pieces.append(r'\s+')
+            elif char in ("'", "’", "`", "´"):
+                pieces.append(r"['’`´]?")
+            elif char.lower() in replacements:
+                pieces.append(replacements[char.lower()])
+            else:
+                pieces.append(re.escape(char))
+        return ''.join(pieces)
+
+    def clear_mapping_terms_cache(self) -> None:
+        """Limpia los terminos normalizados derivados de mapeos."""
+        self._mapping_terms_cache = {}
+
+    def mapping_terms_for_prefix(self, prefix: str) -> set:
+        """Obtiene terminos normalizados de mapeos por prefijo."""
+        if prefix in self._mapping_terms_cache:
+            return self._mapping_terms_cache[prefix]
+
+        terms = {
+            self.normalize_text(key[len(prefix):])
+            for key in self.mappings
+            if key.startswith(prefix) and len(key[len(prefix):].strip()) >= 3
+        }
+        self._mapping_terms_cache[prefix] = terms
+        return terms
+
+    def anonymize_text_with_known_mappings(self, text: str) -> str:
+        """Anonimiza texto usando mapeos ya detectados."""
+        if not isinstance(text, str) or not self.mappings:
+            return text
+
+        result = text
+
+        for prefix, placeholder in {'person_': '<nombre>', 'location_': '<ubicacion>'}.items():
+            terms = self.mapping_terms_for_prefix(prefix)
+            if not terms:
+                continue
+
+            max_words = min(6, max(len(term.split()) for term in terms))
+            word_matches = list(re.finditer(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:['’`´][A-Za-zÁÉÍÓÚÑáéíóúñ]+)?", result))
+            normalized_words = [self.normalize_text(match.group()) for match in word_matches]
+            replacements = []
+            occupied = set()
+
+            for size in range(max_words, 0, -1):
+                for index in range(0, len(word_matches) - size + 1):
+                    indexes = set(range(index, index + size))
+                    if indexes & occupied:
+                        continue
+                    phrase = ' '.join(normalized_words[index:index + size])
+                    if phrase in terms and (size > 1 or len(phrase) >= 4):
+                        replacements.append((word_matches[index].start(), word_matches[index + size - 1].end(), placeholder))
+                        occupied |= indexes
+
+            for start, end, replacement in sorted(replacements, reverse=True):
+                result = result[:start] + replacement + result[end:]
+
+        return result
+
+    def looks_like_person_column(self, series) -> bool:
+        """Indica si una columna contiene mayoritariamente nombres de persona."""
+        sample = [str(value).strip() for value in series.head(80) if str(value).strip()]
+        if not sample:
+            return False
+
+        ignored = {'dynamics crm', 'sitio web', 'presencial', 'email', 'web'}
+        candidates = [
+            value for value in sample
+            if self.normalize_text(value) not in ignored and self.is_name_like(value)
+        ]
+        return len(candidates) >= 3 and len(candidates) / len(sample) >= 0.35
+
+    def seed_mappings_from_dataframe(self, df: pd.DataFrame) -> None:
+        """Precarga mapeos desde columnas estructuradas del archivo."""
+        for col in df.columns:
+            col_lower = self.normalize_text(str(col))
+            is_narrative = any(keyword in col_lower for keyword in ['relato', 'descripcion', 'texto', 'historia', 'denuncia', 'detalle', 'comentario', 'observacion'])
+            if is_narrative:
+                continue
+
+            should_seed = (
+                self.field_matches(col_lower, ['nombre', 'apellido', 'persona', 'estudiante', 'alumno', 'apoderado', 'funcionario'])
+                or self.field_matches(col_lower, ['rut', 'run', 'email', 'correo', 'mail', 'telefono', 'fono', 'celular', 'movil', 'ciudad', 'comuna', 'region', 'ubicacion', 'direccion', 'domicilio'])
+                or self.looks_like_person_column(df[col].astype(str))
+            )
+            if not should_seed:
+                continue
+
+            cache = {}
+            for value in df[col].astype(str):
+                if value not in cache:
+                    cache[value] = self.anonymize_value(value, col_lower)
+
+    def anonymize_text_in_narrative_fast(self, text: str) -> str:
+        """Anonimiza relatos con reglas livianas para archivos grandes."""
+        if not isinstance(text, str) or text.strip() == '':
+            return text
+
+        result = self.anonymize_text_with_known_mappings(text)
+
+        patterns = [
+            ('rut', r'(?i)\b(?:rut|run)\s*:?\s*\d{1,2}[\.\s]?\d{3}[\.\s]?\d{3}\s*-?\s*[\dkK]\b', 'RUT: <rut>'),
+            ('rut', r'\b\d{1,2}\.?\d{3}\.?\d{3}-?[\dkK]\b', '<rut>'),
+            ('email', r'(?<!\S)[^\s@:;,\(\)]+@[^\s@:;,\(\)]+\.[^\s@:;,\(\)\.]{2,}', '<correo>'),
+            ('phone', r'(?<!\w)(?:\+56\s*)?(?:9\s*)?\d{4}\s*\d{4}\b|(?<!\w)\+56\s*\d{8,9}\b|\b\(\d{1,2}\)\s?\d{4}\s?\d{4}\b', '<telefono>'),
+            ('address', r'\b(?:calle|avenida|av\.?|pasaje|pje\.?|camino)[ \t]+[A-Za-z0-9áéíóúÁÉÍÓÚñÑ .#-]{2,80}', '<direccion>'),
+        ]
+        for counter_key, pattern, replacement in patterns:
+            result, count = re.subn(pattern, replacement, result, flags=re.IGNORECASE)
+            if count:
+                self.counter[counter_key] = self.counter.get(counter_key, 0) + count
+
+        locations = [
+            'santiago', 'valparaiso', 'valparaíso', 'vina del mar', 'viña del mar',
+            'concepcion', 'concepción', 'temuco', 'puerto montt', 'antofagasta',
+            'iquique', 'la serena', 'coquimbo', 'rancagua', 'talca', 'chillan',
+            'chillán', 'valdivia', 'osorno', 'punta arenas', 'arica', 'copiapo',
+            'copiapó', 'curico', 'curicó', 'maipu', 'maipú', 'providencia',
+            'las condes', 'nunoa', 'ñuñoa', 'la florida', 'puente alto',
+            'san bernardo', 'quilicura', 'recoleta', 'independencia', 'macul',
+            'quinta normal', 'centro', "o'higgins", "o’higgins", 'ohiggins',
+        ]
+        for location in sorted(set(locations), key=len, reverse=True):
+            if location in self.normalize_text(result):
+                pattern = self.accent_insensitive_pattern(location)
+                result, count = re.subn(rf'(?<!\w){pattern}(?!\w)', '<ubicacion>', result, flags=re.IGNORECASE)
+                if count:
+                    self.counter['location'] = self.counter.get('location', 0) + count
+
+        name_pattern = r'\b[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:[ \t]+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ]+){1,4}\b'
+        protected_labels = {
+            'nombre completo', 'correo electronico', 'direccion residencial',
+            'descripcion de los hechos', 'informacion del denunciante',
+            'denuncia de conducta', 'conducta escolar',
+        }
+        protected_name_terms = {
+            'educacion', 'regional', 'superintendencia', 'denuncia', 'conducta',
+            'escolar', 'establecimiento', 'colegio', 'liceo', 'escuela',
+            'clases', 'lenguaje', 'alumnos', 'actividad', 'profesora',
+            'inspectora', 'convivencia', 'director', 'directora',
+            'de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'que', 'con', 'sin',
+            'por', 'para', 'en', 'no', 'si', 'su', 'sus', 'mi', 'mis',
+        }
+        for match in reversed(list(re.finditer(name_pattern, result))):
+            candidate = match.group().strip()
+            normalized_candidate = self.normalize_text(candidate)
+            candidate_terms = set(normalized_candidate.split())
+            if normalized_candidate in protected_labels:
+                continue
+            if candidate_terms & protected_name_terms:
+                continue
+            if candidate.isupper() and len(candidate.split()) >= 2:
+                result = result[:match.start()] + '<nombre>' + result[match.end():]
+                self.counter['person'] = self.counter.get('person', 0) + 1
+                continue
+            if self.is_valid_person_name(candidate):
+                result = result[:match.start()] + '<nombre>' + result[match.end():]
+                self.counter['person'] = self.counter.get('person', 0) + 1
+
+        common_person_terms = [
+            'juan', 'jose', 'josé', 'maria', 'maría', 'felipe', 'bruno', 'benjamin', 'benjamín',
+            'vicente', 'gabriel', 'martin', 'martín', 'matias', 'matías', 'diego', 'javier',
+            'ignacia', 'isidora', 'violeta', 'florencia', 'roberto', 'margarita', 'cecilia',
+            'priscila', 'miguel', 'romina', 'valeria', 'susana', 'loreto', 'ana', 'pablo',
+            'raul', 'raúl', 'mariana', 'cesar', 'césar', 'sofia', 'sofía', 'camila', 'yazmin',
+            'yazmín', 'roxana', 'elizabeth', 'dante', 'alonso', 'astrid', 'claudia', 'nora',
+            'jofiel', 'josefa', 'fernanda', 'javiera', 'catalina', 'nehuen', 'máximo', 'maximo',
+            'perez', 'pérez', 'garcia', 'garcía', 'gonzalez', 'gonzález', 'diaz', 'díaz',
+            'rojas', 'sanchez', 'sánchez', 'castillo', 'villanueva', 'bastidas', 'arancibia',
+            'ortega', 'caro', 'gutierrez', 'gutiérrez', 'vidal', 'millalonco', 'bascuñan',
+            'linerios', 'lara', 'toledo', 'figueroa', 'contreras', 'torres', 'ugarte',
+            'bello', 'alvarez', 'álvarez', 'currihuil', 'salazar', 'azocar', 'granifo',
+            'meneses', 'morales', 'lopez', 'lópez', 'letelier', 'guzman', 'guzmán',
+            'otálora', 'otarola', 'flores', 'purin', 'vasquez', 'vásquez', 'lagos',
+            'aros', 'olayte', 'olate', 'cárcamo', 'carcamo', 'peña', 'pena', 'tapia',
+            'matus', 'acevedo', 'aburto', 'chacon', 'chacón', 'espinoza',
+        ]
+        for term in sorted(set(common_person_terms), key=len, reverse=True):
+            pattern = self.accent_insensitive_pattern(term)
+            result, count = re.subn(rf'(?<!\w){pattern}(?!\w)', '<nombre>', result, flags=re.IGNORECASE)
+            if count:
+                self.counter['person'] = self.counter.get('person', 0) + count
+
+        context_name_pattern = r'(?i)\b(mi hijo|mi hija|estudiante|alumno|alumna|apoderado|apoderada|sr\.?|sra\.?|profesor|profesora)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:[ \t]+[A-Za-zÁÉÍÓÚÑáéíóúñ]+){0,3})'
+        for match in reversed(list(re.finditer(context_name_pattern, result))):
+            context = match.group(1)
+            candidate = match.group(2).strip()
+            normalized_candidate = self.normalize_text(candidate)
+            if normalized_candidate and not (set(normalized_candidate.split()) & protected_name_terms):
+                result = result[:match.start(2)] + '<nombre>' + result[match.end(2):]
+                self.counter['person'] = self.counter.get('person', 0) + 1
+
+        return result
+
+    def detect_rut(self, value: str) -> bool:
+        """Detecta nÃºmeros RUT chilenos (formato: XX.XXX.XXX-X o XXXXXXXX-X)"""
+        if not isinstance(value, str):
+            return False
+        compact = self.normalize_rut(value)
+        return bool(re.fullmatch(r'\d{7,8}[0-9K]', compact))
+
+    def detect_email(self, value: str) -> bool:
+        """Detecta direcciones de email"""
+        if not isinstance(value, str):
+            return False
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        return bool(re.search(email_pattern, value))
+
+    def detect_phone(self, value: str) -> bool:
+        """Detecta nÃºmeros de telÃ©fono (formato chileno: +56, 9, etc)"""
+        if not isinstance(value, str):
+            return False
+        phone_pattern = r'(?<!\w)(?:\+56\s*)?(?:9\s*)?\d{4}\s*\d{4}\b|(?<!\w)\+56\s*\d{8,9}\b|\b\(\d{1,2}\)\s?\d{4}\s?\d{4}\b'
+        return bool(re.search(phone_pattern, value))
+
+    def is_name_like(self, value: str) -> bool:
+        """Verifica si el valor parece un nombre/apellido (mayÃºscula inicial, palabras)"""
+        if not isinstance(value, str) or len(value.strip()) < 2:
+            return False
+
+        value = value.strip()
+
+        if ' ' not in value:
+            return self.is_valid_person_name(value)
+
+        # Si tiene 2+ palabras y empiezan con mayÃºscula, probablemente es nombre
+        parts = value.split()
+        if len(parts) >= 2:
+            return all(part and part[0].isupper() for part in parts if part)
+
+        return False
+
+    def is_location_like(self, value: str) -> bool:
+        """Verifica si el valor parece una ubicaciÃ³n (solo si tiene palabras clave)"""
+        if not isinstance(value, str) or len(value.strip()) < 3:
+            return False
+        value_lower = self.normalize_text(value)
+        # Solo considerar ubicaciÃ³n si tiene palabras clave explÃ­citas
+        location_keywords = ['calle', 'avenida', 'av ', 'av.', 'pasaje', 'pje ', 'pje.', 'carrera', 'cra.', 'dpto', 'depto', 'piso', 'apto']
+        location_cities = ['santiago', 'vina del mar', 'valparaiso', 'concepcion', 'temuco', 'los angeles', 'puerto montt', 'antofagasta', 'iquique', 'la serena', 'coquimbo', 'rancagua', 'talca', 'chillan', 'valdivia', 'osorno', 'punta arenas', 'arica', 'copiapo', 'curico']
+
+        has_keyword = any(kw in value_lower for kw in location_keywords)
+        has_city = any(city in value_lower for city in location_cities)
+
+        return has_keyword or has_city
+
+    def is_valid_person_name(self, text: str) -> bool:
+        """Valida si el texto es realmente un nombre de persona (con soporte para acentos)"""
+        if not isinstance(text, str) or len(text.strip()) < 2:
+            return False
+
+        # Excluir palabras comunes que no son nombres (con y sin acentos)
+        excluded = {
+            'actividad', 'escuela', 'colegio', 'liceo', 'alumno', 'alumna', 'profesor', 'docente',
+            'director', 'directora', 'apoderado', 'apoderada', 'encargado', 'encargada',
+            'trabajador', 'trabajadora', 'funcionario', 'funcionaria', 'jefe', 'jefa',
+            'regiÃ³n', 'regÃ­on', 'provincia', 'provincia', 'comuna', 'ciudad', 'pueblo', 'paÃ­s',
+            'escena', 'momento', 'dÃ­a', 'dÃ­a', 'mes', 'aÃ±o', 'hora', 'minuto', 'segundo',
+            'clase', 'grupo', 'equipo', 'servicio', 'departamento', 'ministerio',
+            'superintendencia', 'municipalidad', 'instituciÃ³n', 'instituciÃ³n', 'organizaciÃ³n',
+            'curso', 'bÃ¡sico', 'bÃ¡sico', 'primero', 'segundo', 'tercero', 'cuarto', 'quinto',
+            'problema', 'situaciÃ³n', 'situaciÃ³n', 'asunto', 'tema', 'materia', 'requisito',
+            'actividad', 'tarea', 'trabajo', 'proyecto', 'plano', 'patio', 'sala',
+            'ambiente', 'aula', 'biblioteca', 'laboratorio', 'gimnasio', 'comedor',
+            'informaciÃ³n', 'informaciÃ³n', 'educaciÃ³n', 'educaciÃ³n', 'instituciÃ³n', 'instituciÃ³n'
+        }
+
+        text_lower = text.lower().strip()
+        if text_lower in excluded:
+            return False
+
+        # Debe tener al menos 2 palabras para ser considerado nombre completo
+        # O ser una palabra con patrÃ³n tÃ­pico de nombre (mayÃºscula inicial)
+        parts = text.split()
+        if len(parts) < 2:
+            # Una sola palabra: solo si empieza con mayÃºscula y tiene 3+ caracteres
+            return len(text) >= 3 and text[0].isupper()
+        else:
+            # MÃºltiples palabras: todas deben empezar con mayÃºscula (incluyendo acentos)
+            return all(part and part[0].isupper() for part in parts)
+
+    def is_valid_location(self, text: str) -> bool:
+        """Valida si el texto es realmente una ubicaciÃ³n"""
+        if not isinstance(text, str) or len(text.strip()) < 2:
+            return False
+
+        # Lista blanca de ubicaciones vÃ¡lidas
+        valid_locations = {
+            'santiago', 'valparaÃ­so', 'viÃ±a del mar', 'concepciÃ³n', 'temuco',
+            'puerto montt', 'la serena', 'los Ã¡ngeles', 'aysÃ©n', 'o\'higgins',
+            'la araucanÃ­a', 'los lagos', 'antofagasta', 'arica', 'parinacota',
+            'atacama', 'coquimbo', 'regiÃ³n', 'provincia', 'ciudad'
+        }
+
+        text_lower = text.lower().strip()
+
+        # Si estÃ¡ en la lista blanca, validar
+        if text_lower in valid_locations:
+            return True
+
+        # Si contiene palabras geogrÃ¡ficas clave
+        geo_keywords = ['regiÃ³n', 'provincia', 'ciudad', 'comuna', 'calle', 'avenida']
+        return any(keyword in text_lower for keyword in geo_keywords)
+
+    def anonymize_text_with_nlp(self, text: str) -> str:
+        """
+        Anonimiza usando NLP (spaCy) de forma inteligente.
+        Solo anonimiza entidades que pasan validaciÃ³n adicional.
+        """
+        if not self.nlp or not isinstance(text, str) or text.strip() == '':
+            return text
+
+        result = text
+        doc = self.nlp(text)
+
+        # Procesar entidades detectadas por spaCy (en orden inverso)
+        for ent in sorted(doc.ents, key=lambda e: e.start_char, reverse=True):
+            entity_text = ent.text
+            entity_type = ent.label_
+
+            # Mapear tipos de entidades a etiquetas
+            if entity_type == "PER":  # PERSON
+                # ValidaciÃ³n adicional: debe parecer un nombre real
+                if not self.is_valid_person_name(entity_text):
+                    continue
+
+                key = f"person_{entity_text.lower()}"
+                if key not in self.mappings:
+                    self.mappings[key] = entity_text
+                replacement = "<nombre>"
+                self.counter['person'] = self.counter.get('person', 0) + 1
+
+            elif entity_type == "LOC":  # LOCATION
+                # ValidaciÃ³n adicional: debe parecer una ubicaciÃ³n real
+                if not self.is_valid_location(entity_text):
+                    continue
+
+                key = f"location_{entity_text.lower()}"
+                if key not in self.mappings:
+                    self.mappings[key] = entity_text
+                replacement = "<ubicacion>"
+                self.counter['location'] = self.counter.get('location', 0) + 1
+
+            elif entity_type == "ORG":  # ORGANIZATION
+                # Solo si tiene 2+ palabras para evitar palabras sueltas
+                if len(entity_text.split()) < 2:
+                    continue
+
+                key = f"organization_{entity_text.lower()}"
+                if key not in self.mappings:
+                    self.mappings[key] = entity_text
+                replacement = "<organizacion>"
+                self.counter['organization'] = self.counter.get('organization', 0) + 1
+
+            else:
+                continue
+
+            # Reemplazar
+            result = result[:ent.start_char] + replacement + result[ent.end_char:]
+
+        return result
+
+    def anonymize_text_in_narrative(self, text: str) -> str:
+        """
+        Anonimiza datos sensibles DENTRO de un texto narrativo/relato
+        Usa NLP si estÃ¡ disponible, sino usa patrones regex.
+        """
+        if not isinstance(text, str) or text.strip() == '':
+            return text
+
+        # Primero: usar NLP para detecciÃ³n inteligente
+        if self.use_nlp and self.nlp:
+            result = self.anonymize_text_with_nlp(text)
+        else:
+            result = text
+
+        # Luego: aplicar patrones regex en ORDEN ESPECÃFICO para evitar conflictos
+        # ORDEN: RUT â†’ Email â†’ TelÃ©fono â†’ NOMBRES (antes que ubicaciones) â†’ DirecciÃ³n â†’ Ubicaciones
+
+        # 1. Reemplazar RUTs PRIMERO (ya que son los mÃ¡s especÃ­ficos y menos conflictivos)
+        # Formatos flexibles para capturar variantes:
+        # - 12.345.678-9 (formato estÃ¡ndar: 2.3.3-1)
+        # - 12345678-9 (sin puntos: 8 dÃ­gitos)
+        # - 1234567-9 (sin puntos: 7 dÃ­gitos)
+        # - 12 345 678-9 (con espacios)
+        # - 8.808.611-2 (formato: 1.3.3-1)
+        # - 17.417.114137-K (formato especial con muchos dÃ­gitos)
+        rut_patterns = [
+            r'\d{1,2}\.\d{3}\.\d{4,6}-[0-9kK]',  # Flexible: 1-2.3.4-6-digito (17.417.114137-K)
+            r'\d{2}\.\d{3}\.\d{3}-[0-9kK]',      # 12.345.678-9 (estÃ¡ndar)
+            r'\d{1}\.\d{3}\.\d{3}-[0-9kK]',      # 8.808.611-2 (un dÃ­gito inicial)
+            r'\d{1,2}\s\d{3}\s\d{3}-[0-9kK]',    # 12 345 678-9 (con espacios)
+            r'\d{8,11}-[0-9kK]',                 # Sin puntos: 8-11 dÃ­gitos + digito verificador
+            r'\d{7,9}(?=\s|,|$)',                # RUT sin guion ni verificador: 7-9 dÃ­gitos
+            r'\d{7}-[0-9kK]',                    # MÃ­nimo: 1234567-9
+        ]
+
+        for pattern in rut_patterns:
+            matches = list(re.finditer(pattern, result))
+            for match in reversed(matches):  # Procesar en orden inverso
+                rut = match.group()
+                key = f"rut_{rut}"
+                if key not in self.mappings:
+                    self.mappings[key] = rut
+                    self.counter['rut'] = self.counter.get('rut', 0) + 1
+                result = result[:match.start()] + "<rut>" + result[match.end():]
+
+        # 2. Reemplazar correos
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
+        while True:
+            match = re.search(email_pattern, result)
+            if not match:
+                break
+            email = match.group()
+            key = f"email_{email}"
+            if key not in self.mappings:
+                self.mappings[key] = email
+                self.counter['email'] = self.counter.get('email', 0) + 1
+            result = result.replace(email, "<correo>", 1)
+
+        # 3. Reemplazar telÃ©fonos - EN ORDEN DE ESPECIFICIDAD
+        phone_patterns = [
+            r'\+56\s*9\s*\d{4}\s*\d{4}',        # +56 9 1234 5678
+            r'\+56\s*\d{2}\s*\d{4}\s*\d{4}',    # +56 22 1234 5678
+            r'\+56\s*\d{8,9}',                  # +56 912345678
+            r'\b9\s*\d{4}\s*\d{4}\b',           # 9 1234 5678
+            r'\b9\d{8}\b',                      # 91234567
+            r'\(\d{1,2}\)\s*\d{4}\s*\d{4}',     # (2) 1234 5678
+        ]
+
+        for pattern in phone_patterns:
+            while True:
+                match = re.search(pattern, result)
+                if not match:
+                    break
+                phone = match.group()
+                key = f"phone_{phone}"
+                if key not in self.mappings:
+                    self.mappings[key] = phone
+                    self.counter['phone'] = self.counter.get('phone', 0) + 1
+                result = result.replace(phone, "<telefono>", 1)
+
+        # 4a. Reemplazar DIRECCIONES (Calle, Avenida, Pasaje, etc.)
+        # Patrones: "Calle Principal 123", "Avenida Central 456", etc.
+        address_pattern = r'\b(Calle|Avenida|Av\.|Avenida|Pasaje|Carrera|Cra\.|Camino|Dpto|Depto|Piso|Apartamento|Apto|Bloque|Lote)\s+[A-Za-z0-9\s\.#-]+(?:\s+\d+[A-Za-z0-9\s\.,#-]*)?'
+
+        while True:
+            match = re.search(address_pattern, result, re.IGNORECASE)
+            if not match:
+                break
+            address = match.group().strip()
+            key = f"address_{address.lower()}"
+            if key not in self.mappings:
+                self.mappings[key] = address
+                self.counter['address'] = self.counter.get('address', 0) + 1
+            result = result[:match.start()] + "<direccion>" + result[match.end():]
+
+        # 4b. Reemplazar ubicaciones (regiones, provincias y comunas de Chile)
+        # CASE-INSENSITIVE para capturar todas las variantes (mayÃºsculas, minÃºsculas, mixtas)
+        # Fuente: BCN Chile - 15 regiones, 25 provincias, 345 comunas
+
+        locations = [
+            # REGIONES DE CHILE (15)
+            "arica y parinacota", "arica", "tarapaca", "antofagasta", "atacama",
+            "coquimbo", "valparaiso", "libertador general bernardo o'higgins",
+            "o'higgins", "maule", "biobio", "la araucania", "araucania",
+            "los rios", "los lagos", "aysen", "magallanes", "metropolitana de santiago",
+            "metropolitana", "antartida", "magallanes y de la antartida chilena",
+
+            # PROVINCIAS PRINCIPALES (25)
+            "arica", "parinacota", "iquique", "del tamarugal", "tamarugal",
+            "tocopilla", "el loa", "antofagasta", "chanaral", "copiapo",
+            "huasco", "elqui", "limari", "choapa", "petorca",
+            "los andes", "san felipe de aconcagua", "quillota", "valparaiso",
+            "san antonio", "isla de pascua", "cachapoal", "colchagua",
+            "cardenal caro", "curico", "talca", "linares", "cauquenes",
+            "nuble", "biobio", "concepcion", "arauco", "malleco",
+            "cautin", "valdivia", "osorno", "llanquihue", "chiloe",
+            "palena", "coihaique", "aisen", "general carrera", "capitan prat",
+            "ultima esperanza", "tierra del fuego",
+
+            # COMUNAS PRINCIPALES (350+) - Top 100 mÃ¡s comunes
+            "alta hospicio", "camarones", "putre", "huara", "camina", "colchane",
+            "pica", "pozo almonte", "maria elena", "calama", "ollague",
+            "san pedro de atacama", "antofagasta", "mejillones", "sierra gorda",
+            "taltal", "chanaral", "diego de almagro", "copiapo", "caldera",
+            "tierra amarilla", "vallenar", "freirina", "huasco", "la serena",
+            "coquimbo", "andacollo", "vicuna", "ovalle", "rio hurtado",
+            "monte patria", "illapel", "los vilos", "la ligua", "petorca",
+            "los andes", "san esteban", "san felipe", "putaendo", "quillota",
+            "la cruz", "calera", "limache", "olmue", "valparaiso",
+            "vina del mar", "villa alemana", "quilpue", "quinta normal",
+            "con con", "concon", "juan fernandez", "san antonio", "cartagena",
+            "el tabo", "algarrobo", "santo domingo", "isla de pascua",
+            "rancagua", "graneros", "mostazal", "machali", "requinoa",
+            "rengo", "san vicente", "pichidegua", "san fernando", "chimbarongo",
+            "santa cruz", "pichilemu", "talca", "pelarco", "rio claro",
+            "san clemente", "constitucion", "pencahue", "linares", "yerbas buenas",
+            "colbun", "longavi", "parral", "retiro", "villa alegre",
+            "san javier", "cauquenes", "pelluhue", "chanco", "chillan",
+            "san carlos", "niquen", "bulnes", "quillon", "ranquil",
+            "treguaco", "quirihue", "chillan viejo", "los angeles", "cabrero",
+            "tucapel", "antuco", "mulchen", "negrete", "nacimiento",
+            "laja", "yumbel", "concepcion", "talcahuano", "tome",
+            "florida", "hualqui", "lota", "coronel",
+            "san pedro de la paz", "chiguayante", "lebu", "arauco", "canete",
+            "contulmo", "tirua", "angol", "renaico", "collipulli",
+            "lonquimay", "curacautin", "ercilla", "victoria", "traiguen",
+            "lumaco", "puren", "los sauces", "temuco", "lautaro",
+            "vilcun", "cholchol", "cunco", "pucon", "villarrica",
+            "freire", "gorbea", "loncoche", "tolten", "carahue",
+            "nueva imperial", "galvarino", "padre las casas", "valdivia",
+            "mariquina", "lanco", "mafil", "corral", "panguipulli",
+            "paillaco", "ranco", "la union", "futrono", "rio bueno",
+            "osorno", "san pablo", "puyehue", "puerto octay", "purranque",
+            "rio negro", "puerto montt", "puerto varas", "cochamo", "calbuco",
+            "maullin", "llanquihue", "frutillar", "castro", "ancud",
+            "quemchi", "dalcahue", "quinchao", "chonchi", "quellon",
+            "chaitÃ©n", "hualaihue", "futaleufÃº", "palena", "coyhaique",
+            "lago verde", "cisnes", "chile chico", "rio ibanez", "cochrane",
+            "natales", "torres del paine", "punta arenas", "rio verde",
+            "porvenir", "primavera", "santiago", "independencia", "conchalÃ­",
+            "huechuraba", "recoleta", "providencia", "vitacura", "lo barnechea",
+            "las condes", "nunoa", "la reina", "macul", "penalolen",
+            "la florida", "san joaquin", "la granja", "la pintana", "san ramon",
+            "san miguel", "la cisterna", "el bosque", "pedro aguirre cerda",
+            "lo espejo", "estacion central", "cerrillos", "maipu", "lo prado",
+            "pudahuel", "cerro navia", "renca", "quilicura", "colina",
+            "lampa", "tiltil", "puente alto", "san jose de maipo", "pirque",
+            "san bernardo", "buin", "paine", "calera de tango", "maria pinto",
+            "curacavi", "san pedro", "talagante", "penaflor", "el monte",
+            "padre hurtado", "peÃ±aflor", "penaflo",
+        ]
+
+        # Reemplazar case-insensitively (ordenado por longitud descendente)
+        for location in sorted(set(locations), key=len, reverse=True):
+            # Solo procesar si tiene al menos 2 caracteres
+            if len(location) < 2:
+                continue
+
+            pattern = re.compile(r'\b' + re.escape(location) + r'\b', re.IGNORECASE)
+            matches = list(pattern.finditer(result))
+            for match in reversed(matches):
+                found_location = match.group()
+                key = f"location_{found_location.lower()}"
+                if key not in self.mappings:
+                    self.mappings[key] = found_location
+                    self.counter['location'] = self.counter.get('location', 0) + 1
+                result = result[:match.start()] + "<ubicacion>" + result[match.end():]
+
+        # 5. Reemplazar nombres (personas) - ESTRATEGIA DE MÃšLTIPLES PATRONES
+        # Estrategia: detectar con mayÃºscula inicial (mÃ¡s confiable) mÃ¡s nombres comunes minÃºsculos
+        # Incluye: acentos (Ã¡, Ã©, Ã­, Ã³, Ãº) y letra Ã±
+
+        excluded_words = {
+            # Instituciones y roles
+            'regiÃ³n', 'region', 'regÃ­on', 'servicio', 'escuela', 'departamento', 'ministerio',
+            'municipalidad', 'superintendencia', 'direcciÃ³n', 'direccion', 'provincia', 'ciudad',
+            'pueblo', 'paÃ­s', 'pais', 'universidad', 'colegio', 'liceo', 'hospital', 'juzgado',
+            'alumno', 'alumna', 'profesor', 'docente', 'director', 'directora',
+            'trabajador', 'trabajadora', 'funcionario', 'funcionaria', 'jefe', 'jefa',
+            'estudiante', 'maestro', 'maestra', 'abogado', 'abogada', 'apoderado', 'apoderada',
+            # Otros
+            'informaciÃ³n', 'educaciÃ³n', 'clase', 'actividad', 'problema', 'ambiente',
+            'test', 'casos', 'detalles', 'nombres', 'ubicaciones', 'datos'
+        }
+
+        # PatrÃ³n 1: Nombres que empiezan con mayÃºscula (mÃ¡s confiable)
+        # Detecta: Juan PÃ©rez, JUAN PEREZ, Hualpen, ANTONELA, etc.
+        name_pattern_capital = r'\b[A-ZÃ‘][a-zÃ¡Ã©Ã­Ã³ÃºÃ±A-ZÃ‘]+(?:\s+[A-ZÃ‘][a-zÃ¡Ã©Ã­Ã³ÃºÃ±A-ZÃ‘]+)*\b'
+
+        matches = list(re.finditer(name_pattern_capital, result))
+        for match in reversed(matches):
+            name = match.group().strip()
+            name_lower = name.lower()
+
+            # Validar que sea un nombre
+            if name_lower not in excluded_words and len(name) >= 4:
+                key = f"person_{name_lower}"
+                if key not in self.mappings:
+                    self.mappings[key] = name
+                    self.counter['person'] = self.counter.get('person', 0) + 1
+                result = result[:match.start()] + "<nombre>" + result[match.end():]
+
+        # PatrÃ³n 2: Nombres comunes en minÃºsculas (cuando estÃ¡ TODO en minÃºsculas)
+        # Incluye los 100+ nombres mÃ¡s populares en Chile 2024 + apellidos comunes
+        # Fuente: https://ergobaby.cl/blog/portabebes/los-100-nombres-mas-populares-para-ninos-ninas-en-2024
+        spanish_common_names = [
+            # Nombres de niÃ±as - Top 100 Chile 2024
+            'sofÃ­a', 'sofia', 'valentina', 'isabella', 'camila', 'valeria', 'martina',
+            'lucÃ­a', 'lucia', 'emma', 'victoria', 'elena', 'gabriela', 'daniela',
+            'marÃ­a', 'maria', 'amelia', 'ana', 'catalina', 'julieta', 'aitana',
+            'ximena', 'luna', 'sara', 'adriana', 'paula', 'emilia', 'carla', 'clara',
+            'miranda', 'rocÃ­o', 'rocio', 'laura', 'andrea', 'zoe', 'alba', 'olivia',
+            'bianca', 'julia', 'renata', 'mÃ­a', 'mia', 'regina', 'lorena', 'fernanda',
+            'isabel', 'cecilia', 'alejandra', 'diana', 'Ã¡ngela', 'angela', 'Ã¡mbar', 'ambar',
+            'sonia', 'luciana', 'rosa', 'carmen', 'yolanda', 'gloria', 'rosario', 'inÃ©s', 'ines',
+            'silvia', 'claudia', 'alicia', 'vera', 'noelia', 'natalia', 'susana', 'estela',
+            'verÃ³nica', 'veronica', 'teresa', 'begoÃ±a', 'begonia', 'esmeralda', 'elisa', 'magdalena', 'jimena',
+            'irene', 'belÃ©n', 'belen', 'mariana', 'milagros', 'felicidad', 'esperanza',
+            'dolores', 'patricia', 'gracia', 'fabiola', 'consuelo', 'josefina', 'pilar',
+            'lorenza', 'marcela', 'tamara', 'rebeca', 'mercedes', 'guadalupe', 'paloma',
+            'evangelina', 'manuela', 'ramona', 'lucero', 'ignacia', 'amalia',
+            # Nombres de niÃ±os - Top 100 Chile 2024
+            'mateo', 'santiago', 'sebastiÃ¡n', 'sebastian', 'leonardo', 'matÃ­as', 'matias',
+            'martÃ­n', 'martin', 'alejandro', 'lucas', 'nicolÃ¡s', 'nicolas', 'samuel',
+            'benjamÃ­n', 'benjamin', 'thiago', 'emiliano', 'diego', 'tomÃ¡s', 'tomas',
+            'joaquÃ­n', 'joaquin', 'gabriel', 'david', 'miguel', 'isaac', 'pablo',
+            'Ã¡ngel', 'angel', 'adriÃ¡n', 'adrian', 'bruno', 'juan', 'josÃ©', 'jose',
+            'maximiliano', 'salvador', 'franco', 'andrÃ©s', 'andres', 'rodrigo', 'enzo',
+            'agustÃ­n', 'agustin', 'antonio', 'manuel', 'emilio', 'rafael', 'vicente',
+            'javier', 'hugo', 'carlos', 'leÃ³n', 'leon', 'ernesto', 'Ã¡lvaro', 'alvaro',
+            'gael', 'mauricio', 'valentÃ­n', 'valentin', 'iker', 'jorge', 'ricardo',
+            'alberto', 'alonso', 'cristian', 'julian', 'cÃ©sar', 'cesar', 'damiÃ¡n', 'damian',
+            'fÃ©lix', 'felix', 'hector', 'kevin', 'isaÃ­as', 'isaias', 'raÃºl', 'raul',
+            'esteban', 'simÃ³n', 'simon', 'alfonso', 'armando', 'darÃ­o', 'dario',
+            'fabio', 'felipe', 'gustavo', 'jacobo', 'leandro', 'marcos', 'mario',
+            'mÃ¡ximo', 'maximo', 'Ã³scar', 'oscar', 'patricio', 'pedro', 'rey', 'romeo',
+            'rubÃ©n', 'ruben', 'saÃºl', 'sergio', 'valentino', 'vÃ­ctor', 'victor',
+            'yago', 'yahir', 'zacarÃ­as', 'zacarias', 'baltasar', 'casimiro',
+            'demetrio', 'edmundo',
+            # Apellidos comunes chilenos - Top 100 segÃºn Registro Civil Chile
+            # Incluye variantes con/sin acentos (para detectar apellidos solos)
+            # Fuente: Wikipedia + CNN Chile + PsicologÃ­a y Mente
+            'barrÃ­a', 'barria', 'pÃ©rez', 'perez', 'garcÃ­a', 'garcia', 'hernÃ¡ndez', 'hernandez',
+            'martÃ­nez', 'martinez', 'bascuÃ±Ã¡n', 'bascunan', 'pÃ­a', 'pia',
+            'gonzalez', 'muÃ±oz', 'rojas', 'diaz', 'soto', 'contreras',
+            'silva', 'martinez', 'sepulveda', 'morales', 'rodriguez', 'lopez',
+            'fuentes', 'hernandez', 'torres', 'araya', 'flores', 'espinoza',
+            'valenzuela', 'castillo', 'tapia', 'reyes', 'gutierrez', 'castro',
+            'pizarro', 'alvarez', 'vasquez', 'sanchez', 'fernandez', 'ramirez',
+            'carrasco', 'gomez', 'cortes', 'herrera', 'nunez', 'jara', 'vergara',
+            'rivera', 'figueroa', 'riquelme', 'garcia', 'miranda', 'bravo', 'vera',
+            'molina', 'vega', 'campos', 'sandoval', 'orellana', 'cardenas',
+            'olivares', 'alarcon', 'gallardo', 'ortiz', 'garrido', 'salazar',
+            'guzman', 'henriquez', 'saavedra', 'navarro', 'aguilera', 'parra',
+            'romero', 'aravena', 'vargas', 'caceres', 'yanez', 'leiva', 'escobar',
+            'ruiz', 'valdes', 'vidal', 'salinas', 'zuniga', 'pena', 'godoy',
+            'lagos', 'maldonado', 'bustos', 'medina', 'pino', 'palma', 'moreno',
+            'sanhueza', 'carvajal', 'navarrete', 'saez', 'alvarado', 'donoso',
+            'poblete', 'bustamante', 'toro', 'ortega', 'franco', 'rios', 'calderon',
+            'zamora', 'santibaÃ±ez', 'santibanez', 'pavez', 'velasquez',
+            # Apellidos comunes espaÃ±oles
+            'martin', 'jimenez', 'domenguez', 'dominguez', 'ramos',
+            # Apellidos indÃ­genas / mapuches (chilenos)
+            'maripillÃ¡n', 'maripillan', 'catelicÃ¡n', 'catelican',
+            'Ã±ancupil', 'nancupil', 'queipul', 'quintrala', 'coÃ±uepan',
+            'pichun', 'paillahueque', 'paihueque', 'cayuqueo', 'cayuqueu',
+            'painemal', 'painemalÃ­', 'painemalÃ­', 'contreras', 'antihueque',
+        ]
+
+        for name in spanish_common_names:
+            pattern = r'\b' + name + r'\b'
+            matches = list(re.finditer(pattern, result, re.IGNORECASE))
+            for match in reversed(matches):
+                found_name = match.group().strip()
+                name_lower = found_name.lower()
+                if name_lower not in excluded_words and len(found_name) >= 4:
+                    key = f"person_{name_lower}"
+                    if key not in self.mappings:
+                        self.mappings[key] = found_name
+                        self.counter['person'] = self.counter.get('person', 0) + 1
+                    result = result[:match.start()] + "<nombre>" + result[match.end():]
+
+        return result
+
+    def anonymize_value(self, value: str, field_type: str) -> str:
+        """Anonimiza un valor segÃºn su tipo detectado"""
+        if not isinstance(value, str) or value.strip() == '':
+            return value
+
+        original = value.strip()
+        is_person_field = self.field_matches(field_type, ['nombre', 'apellido', 'persona', 'estudiante', 'alumno', 'apoderado', 'funcionario'])
+        is_location_field = self.field_matches(field_type, ['ciudad', 'comuna', 'region', 'ubicacion', 'direccion', 'domicilio', 'calle'])
+        is_rut_field = self.field_matches(field_type, ['rut', 'run'])
+        is_email_field = self.field_matches(field_type, ['email', 'correo', 'mail'])
+        is_phone_field = self.field_matches(field_type, ['telefono', 'fono', 'celular', 'movil', 'contacto'])
+
+        if is_phone_field:
+            compact_phone = re.sub(r'\D', '', original)
+            if not compact_phone:
+                return value
+            key = f"phone_{compact_phone}"
+            if key not in self.mappings:
+                count = self.counter.get('phone', 0) + 1
+                self.counter['phone'] = count
+                self.mappings[key] = f"+56-9-XXXX-{count:04d}"
+            return self.mappings[key]
+
+        if is_rut_field or self.detect_rut(original):
+            compact_rut = self.normalize_rut(original)
+            if not compact_rut:
+                return value
+            key = f"rut_{compact_rut}"
+            if key not in self.mappings:
+                count = self.counter.get('rut', 0) + 1
+                self.counter['rut'] = count
+                self.mappings[key] = f"RUT_{count:03d}"
+            return self.mappings[key]
+
+        if is_email_field or self.detect_email(original):
+            key = f"email_{self.normalize_text(original)}"
+            if key not in self.mappings:
+                count = self.counter.get('email', 0) + 1
+                self.counter['email'] = count
+                self.mappings[key] = f"correo_{count:03d}@anonimizado.local"
+            return self.mappings[key]
+
+        if self.detect_phone(original):
+            compact_phone = re.sub(r'\D', '', original)
+            if not compact_phone:
+                return value
+            key = f"phone_{compact_phone}"
+            if key not in self.mappings:
+                count = self.counter.get('phone', 0) + 1
+                self.counter['phone'] = count
+                self.mappings[key] = f"+56-9-XXXX-{count:04d}"
+            return self.mappings[key]
+
+        if is_location_field or self.is_location_like(original):
+            key = f"location_{self.normalize_text(original)}"
+            if key not in self.mappings:
+                count = self.counter.get('location', 0) + 1
+                self.counter['location'] = count
+                self.mappings[key] = f"Ubicacion_{count:03d}"
+                self.clear_mapping_terms_cache()
+            return self.mappings[key]
+
+        if is_person_field or self.is_name_like(original):
+            key = f"person_{self.normalize_text(original)}"
+            if key not in self.mappings:
+                count = self.counter.get('person', 0) + 1
+                self.counter['person'] = count
+                self.mappings[key] = f"Persona_{count:03d}"
+                self.clear_mapping_terms_cache()
+            return self.mappings[key]
+
+        return value
+
+    def anonymize_dataframe(self, df: pd.DataFrame, columns_to_anonymize: List[str] = None, timeout_seconds: int = None) -> pd.DataFrame:
+        """Anonimiza columnas especificadas en un DataFrame"""
+        df_copy = df.copy()
+        started_at = time.monotonic()
+
+        def ensure_not_timed_out():
+            if timeout_seconds is not None and time.monotonic() - started_at > timeout_seconds:
+                raise TimeoutError("Tiempo mÃ¡ximo de procesamiento excedido")
+
+        if columns_to_anonymize is None:
+            columns_to_anonymize = df.columns.tolist()
+
+        self.seed_mappings_from_dataframe(df_copy)
+
+        # Lista de palabras clave para detectar columnas narrativas
+        narrative_keywords = ['relato', 'descripcion', 'narrative', 'texto', 'historia', 'denuncia',
+                             'descripciÃ³n', 'narraciÃ³n', 'detalle', 'comentario', 'observacion', 'observaciÃ³n']
+        sensitive_keywords = [
+            'nombre', 'apellido', 'persona', 'estudiante', 'alumno', 'apoderado', 'funcionario',
+            'rut', 'run', 'email', 'correo', 'mail', 'telefono', 'fono', 'celular', 'movil', 'contacto',
+            'ciudad', 'comuna', 'region', 'ubicacion', 'direccion', 'domicilio', 'calle',
+            *narrative_keywords,
+        ]
+
+        for col in columns_to_anonymize:
+            ensure_not_timed_out()
+            if col in df_copy.columns:
+                column_started_at = time.monotonic()
+                # Detectar si es una columna de relato/narrativa (texto largo)
+                col_lower = self.normalize_text(col)
+                if not any(keyword in col_lower for keyword in sensitive_keywords):
+                    print(f"[ANON] Columna omitida: {col}", flush=True)
+                    continue
+                is_narrative = any(keyword in col_lower for keyword in narrative_keywords)
+                print(f"[ANON] Procesando columna: {col} | narrativa={is_narrative} | filas={len(df_copy)}", flush=True)
+
+                if is_narrative:
+                    # Para columnas narrativas, crear una columna nueva anonimizada
+                    new_col_name = f"{col}_Anonimizado"
+                    cache = {}
+                    values = []
+                    for index, value in enumerate(df_copy[col].astype(str), start=1):
+                        ensure_not_timed_out()
+                        if value not in cache:
+                            cache[value] = self.anonymize_text_in_narrative_fast(value)
+                        values.append(cache[value])
+                        if index % 500 == 0 or index == len(df_copy):
+                            print(f"[ANON] {col}: {index}/{len(df_copy)} filas", flush=True)
+                    df_copy[new_col_name] = values
+                else:
+                    # Para columnas normales, crear una columna nueva
+                    new_col_name = f"{col}_Anonimizado"
+                    cache = {}
+                    values = []
+                    for value in df_copy[col].astype(str):
+                        ensure_not_timed_out()
+                        if value not in cache:
+                            cache[value] = self.anonymize_value(value, col_lower)
+                        values.append(cache[value])
+                    df_copy[new_col_name] = values
+                elapsed = time.monotonic() - column_started_at
+                print(f"[ANON] Columna lista: {col} | {elapsed:.2f}s", flush=True)
+
+        return df_copy
+
+    def save_mappings(self, output_file: str):
+        """Guarda el diccionario de mapeos en un archivo JSON"""
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(self.mappings, f, ensure_ascii=False, indent=2)
+        print(f"[OK] Mapeos guardados en: {output_file}")
+
+    def load_mappings(self, input_file: str):
+        """Carga un diccionario de mapeos previo"""
+        with open(input_file, 'r', encoding='utf-8') as f:
+            self.mappings = json.load(f)
+        self.clear_mapping_terms_cache()
+        print(f"[OK] Mapeos cargados desde: {input_file}")
+
+
+def anonymize_file(input_file: str, output_file: str = None, columns: List[str] = None,
+                   mapping_file: str = None, save_mapping: bool = True):
+    """
+    FunciÃ³n principal para anonimizar archivos CSV/Excel
+
+    Args:
+        input_file: Ruta del archivo de entrada
+        output_file: Ruta del archivo anonimizado (por defecto: input_anonymized.ext)
+        columns: Lista de columnas a anonimizar (None = todas)
+        mapping_file: Archivo de mapeos previos para aplicar
+        save_mapping: Si guardar el diccionario de mapeos
+    """
+    input_path = Path(input_file)
+
+    if not input_path.exists():
+        print(f"[ERROR] Archivo no encontrado: {input_file}")
+        return
+
+    print(f"[*] Leyendo archivo: {input_file}")
+
+    if input_path.suffix.lower() == '.csv':
+        df = pd.read_csv(input_file, encoding='utf-8')
+    elif input_path.suffix.lower() in ['.xlsx', '.xls']:
+        df = pd.read_excel(input_file)
+    else:
+        print(f"[ERROR] Formato no soportado: {input_path.suffix}")
+        return
+
+    anonymizer = DataAnonymizer(mapping_file)
+
+    print(f"[INFO] Columnas detectadas: {list(df.columns)}")
+    if columns:
+        cols_to_anonymize = columns
+        print(f"[TARGET] Anonimizando columnas especÃ­ficas: {cols_to_anonymize}")
+    else:
+        cols_to_anonymize = df.columns.tolist()
+        print(f"[TARGET] Anonimizando todas las columnas")
+
+    df_anonymized = anonymizer.anonymize_dataframe(df, cols_to_anonymize)
+
+    if output_file is None:
+        name = input_path.stem
+        ext = input_path.suffix
+        output_file = input_path.parent / f"{name}_anonymized{ext}"
+
+    output_path = Path(output_file)
+
+    if output_path.suffix.lower() == '.csv':
+        df_anonymized.to_csv(output_file, index=False, encoding='utf-8')
+    else:
+        df_anonymized.to_excel(output_file, index=False)
+
+    print(f"[OK] Archivo anonimizado guardado: {output_file}")
+
+    if save_mapping:
+        mapping_output = output_path.parent / f"{output_path.stem}_mappings.json"
+        anonymizer.save_mappings(str(mapping_output))
+
+    print(f"\n[SUMMARY]")
+    print(f"   Filas procesadas: {len(df)}")
+    print(f"   Mapeos creados: {len(anonymizer.mappings)}")
+    print(f"   - Personas: {anonymizer.counter.get('person', 0)}")
+    print(f"   - Ubicaciones: {anonymizer.counter.get('location', 0)}")
+    print(f"   - RUTs: {anonymizer.counter.get('rut', 0)}")
+    print(f"   - Emails: {anonymizer.counter.get('email', 0)}")
+    print(f"   - TelÃ©fonos: {anonymizer.counter.get('phone', 0)}")
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Uso: python anonymizer.py <archivo_entrada> [archivo_salida] [columnas]")
+        print("\nEjemplos:")
+        print("  python anonymizer.py datos.csv")
+        print("  python anonymizer.py datos.xlsx datos_anonimizado.xlsx")
+        print("  python anonymizer.py datos.csv salida.csv nombre,apellido,email")
+        sys.exit(1)
+
+    input_file = sys.argv[1]
+    output_file = sys.argv[2] if len(sys.argv) > 2 else None
+    columns = sys.argv[3].split(',') if len(sys.argv) > 3 else None
+
+    anonymize_file(input_file, output_file, columns)
+
+
