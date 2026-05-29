@@ -3,7 +3,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { CheckCircle2, Columns3, Database, Play, RotateCcw, ShieldCheck, Shield, Search, Zap } from 'lucide-react'
+import { CheckCircle2, Columns3, Database, Play, RotateCcw, ShieldCheck, Shield, Zap } from 'lucide-react'
 import { useAnonymizerStore } from '@/store/anonymizer.store'
 
 interface ColumnSelectorProps {

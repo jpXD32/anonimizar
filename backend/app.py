@@ -133,9 +133,9 @@ def read_file(filepath):
 def get_cipher_for_result(result_id):
     """Genera cipher determinístico basado en result_id para descifrar archivos en caché"""
     try:
-        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=b'anonimizador-sec-salt-v1',
@@ -485,13 +485,19 @@ def download_cached_result(result_id, file_format):
             )
             return error_response('Processed result expired or not found', 404)
 
-        # ✅ DESENCRIPTAR archivo
+        # ✅ DESENCRIPTAR archivo (si está cifrado .enc)
         try:
-            cipher = get_cipher_for_result(result_id)
             with open(source_path, 'rb') as f:
-                encrypted_data = f.read()
-            decrypted_data = cipher.decrypt(encrypted_data)
-            logger.info(f'[SECURITY] Archivo desencriptado: {result_id}')
+                file_data = f.read()
+
+            if source_path.suffix == '.enc':
+                cipher = get_cipher_for_result(result_id)
+                decrypted_data = cipher.decrypt(file_data)
+                logger.info(f'[SECURITY] Archivo desencriptado: {result_id}')
+            else:
+                # Compatibilidad con caché legacy no cifrado.
+                decrypted_data = file_data
+                logger.warning(f'[SECURITY] Archivo de caché sin cifrado detectado: {result_id}')
         except InvalidToken:
             log_audit(
                 event_type='download_error',

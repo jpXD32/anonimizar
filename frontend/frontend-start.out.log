@@ -1,9 +1,26 @@
 
-> anonimizar-web@1.0.0 start
-> next start -p 3000
+> anonimizar-web@1.0.0 dev
+> next dev
 
   ▲ Next.js 14.2.35
   - Local:        http://localhost:3000
 
  ✓ Starting...
- ✓ Ready in 184ms
+ ✓ Ready in 1400ms
+ ○ Compiling / ...
+ ✓ Compiled / in 942ms (623 modules)
+ GET / 200 in 1195ms
+ GET / 200 in 40ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 526ms (735 modules)
+ ✓ Compiled /help in 230ms (753 modules)
+ ✓ Compiled in 1182ms (391 modules)
+ ✓ Compiled in 460ms (767 modules)
+ GET /dashboard 200 in 487ms
+ GET /dashboard 200 in 45ms
+ GET /dashboard 200 in 83ms
+ GET /dashboard 200 in 32ms
+ GET /dashboard 200 in 51ms
+ ✓ Compiled in 342ms (767 modules)
+ GET /dashboard 200 in 124ms
+ GET /dashboard 200 in 58ms

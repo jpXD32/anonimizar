@@ -130,18 +130,23 @@ export default function DashboardPage() {
   }
 
   const handleDownloadCSV = async () => {
+    const inlineData =
+      store.anonymizedData?.map(row =>
+        Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
+      ) || []
+
     try {
       if (store.resultDownloadId) {
-        const blob = await apiClient.downloadCachedResult(store.resultDownloadId, 'csv')
-        downloadFile(blob, 'anonymized-data.csv')
-        return
+        try {
+          const blob = await apiClient.downloadCachedResult(store.resultDownloadId, 'csv')
+          downloadFile(blob, 'anonymized-data.csv')
+          return
+        } catch {
+          // Si expira el resultado cacheado, usar fallback local sin bloquear al usuario.
+        }
       }
 
-      const blob = await apiClient.downloadCSV(
-        store.anonymizedData?.map(row =>
-          Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
-        ) || []
-      )
+      const blob = await apiClient.downloadCSV(inlineData)
       downloadFile(blob, 'anonymized-data.csv')
     } catch (error) {
       store.setError(error instanceof Error ? error.message : 'Error descargando CSV')
@@ -149,18 +154,23 @@ export default function DashboardPage() {
   }
 
   const handleDownloadExcel = async () => {
+    const inlineData =
+      store.anonymizedData?.map(row =>
+        Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
+      ) || []
+
     try {
       if (store.resultDownloadId) {
-        const blob = await apiClient.downloadCachedResult(store.resultDownloadId, 'excel')
-        downloadFile(blob, 'anonymized-data.xlsx')
-        return
+        try {
+          const blob = await apiClient.downloadCachedResult(store.resultDownloadId, 'excel')
+          downloadFile(blob, 'anonymized-data.xlsx')
+          return
+        } catch {
+          // Si expira el resultado cacheado, usar fallback local sin bloquear al usuario.
+        }
       }
 
-      const blob = await apiClient.downloadExcel(
-        store.anonymizedData?.map(row =>
-          Object.fromEntries(store.fileColumns.map((col, i) => [col, row[i]]))
-        ) || []
-      )
+      const blob = await apiClient.downloadExcel(inlineData)
       downloadFile(blob, 'anonymized-data.xlsx')
     } catch (error) {
       store.setError(error instanceof Error ? error.message : 'Error descargando Excel')
@@ -357,4 +367,3 @@ export default function DashboardPage() {
     </>
   )
 }
-

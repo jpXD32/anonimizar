@@ -1,0 +1,7 @@
+C:\Users\juanp\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\cuda\__init__.py:61: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+[ANON] Procesando: relato (1 filas)
+[ANON] relato: 1/1 filas
+[OK] Completado: relato
+ANON: El dia 12 de marzo, Juan Perez (RUT 12.345.678-9) discutio con Maria Gonzalez en la oficina de Santiago. Posteriormente, Pedro Ramirez, RUT 9.876.543-2, llamo a maria al telefono +56 9 8765 4321 y le escribio a juan.perez@empresa.cl.
+SUMMARY: {'personas': 4, 'ubicaciones': 1, 'instituciones': 0, 'ruts': 2, 'ids': 0, 'emails': 1, 'telefonos': 1, 'direcciones': 0, 'total': 9, 'modelo_ner': 'es_core_news_lg'}
