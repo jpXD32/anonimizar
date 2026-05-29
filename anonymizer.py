@@ -195,6 +195,19 @@ class DataAnonymizer:
         # MEJORA: Cargar diccionarios configurables desde JSON si existen
         custom_dicts = _load_custom_dictionaries(dict_file)
 
+        # MEJORA: Cargar base de nombres españoles/chilenos
+        try:
+            from spanish_names import get_all_names, get_common_full_names
+            self.known_names = get_all_names()
+            self.common_full_names = get_common_full_names()
+            if self.debug:
+                logger.info(f"Base de nombres cargada: {len(self.known_names)} nombres")
+        except ImportError:
+            self.known_names = set()
+            self.common_full_names = set()
+            if self.debug:
+                logger.warning("Base de nombres no disponible")
+
         # Diccionarios por defecto
         default_locations = {
             'arica y parinacota', 'arica', 'tarapaca', 'antofagasta', 'atacama',
@@ -399,6 +412,31 @@ class DataAnonymizer:
 
         return spans
 
+    def _dictionary_name_spans(self, text: str) -> List:
+        """NUEVO: Detección de nombres usando diccionario de nombres españoles/chilenos."""
+        spans = []
+
+        if not self.known_names:
+            return spans
+
+        # Buscar nombres completos (primero, más específico)
+        for full_name in sorted(self.common_full_names, key=len, reverse=True):
+            pattern = re.compile(r'\b' + re.escape(full_name) + r'\b', re.IGNORECASE)
+            for m in pattern.finditer(text):
+                spans.append((m.start(), m.end(), '<nombre>', 'person', 0.92))
+                if self.debug:
+                    logger.debug(f"Nombre detectado (diccionario completo): {full_name}")
+
+        # Buscar nombres individuales (menos específico)
+        for name in sorted(self.known_names, key=len, reverse=True):
+            pattern = re.compile(r'\b' + re.escape(name) + r'\b', re.IGNORECASE)
+            for m in pattern.finditer(text):
+                spans.append((m.start(), m.end(), '<nombre>', 'person', 0.85))
+                if self.debug:
+                    logger.debug(f"Nombre detectado (diccionario): {name}")
+
+        return spans
+
     def _fallback_name_spans(self, text: str) -> List:
         """MEJORA: Detección mejorada de nombres (regex fallback)."""
         spans = []
@@ -483,9 +521,13 @@ class DataAnonymizer:
             spans += self._ner_spans(doc)
         else:
             spans += self._fallback_name_spans(text)
+
         # El diccionario de respaldo se usa en standard/aggressive.
         if self.confidence_mode in ('standard', 'aggressive'):
             spans += self._dictionary_spans(text)
+            # NUEVO: También usar diccionario de nombres españoles
+            spans += self._dictionary_name_spans(text)
+
         return self._merge_and_replace(text, spans)
 
     def anonymize_narrative(self, text: str) -> str:
