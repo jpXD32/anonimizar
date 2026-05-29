@@ -2,715 +2,365 @@ import pandas as pd
 import re
 from pathlib import Path
 from typing import Dict, List
-import json
-import time
+
+# ---------------------------------------------------------------------------
+# Carga perezosa del modelo spaCy (singleton a nivel de modulo).
+# El backend crea un DataAnonymizer() por cada request; cargar el modelo en
+# cada instancia seria lentisimo. Se carga UNA sola vez y se reutiliza.
+# ---------------------------------------------------------------------------
+_NLP = None
+_NLP_LOADED = False
+_NLP_MODEL_NAME = None
+
+
+def _load_nlp():
+    """Carga el mejor modelo NER en espanol disponible (lg > md > sm)."""
+    global _NLP, _NLP_LOADED, _NLP_MODEL_NAME
+    if _NLP_LOADED:
+        return _NLP
+    _NLP_LOADED = True
+    try:
+        import spacy
+    except Exception:
+        _NLP = None
+        return _NLP
+    disable = ['tagger', 'parser', 'lemmatizer', 'attribute_ruler', 'morphologizer']
+    for model_name in ('es_core_news_lg', 'es_core_news_md', 'es_core_news_sm'):
+        try:
+            _NLP = spacy.load(model_name, disable=disable)
+            _NLP_MODEL_NAME = model_name
+            return _NLP
+        except Exception:
+            continue
+    _NLP = None
+    return _NLP
+
 
 class DataAnonymizer:
     """
-    Anonimizador AVANZADO v3 para relatos y textos narrativos.
+    Anonimizador HIBRIDO v5 (NER + Regex + Multi-Actor).
 
-    ✅ MEJORAS FASE 1 (10):
-    - Encoding correcto (caracteres acentuados)
-    - Detección de 350+ ubicaciones con variantes
-    - 650+ nombres comunes + nombres cortos
-    - RUT con múltiples formatos
-    - Teléfono con 8 formatos
-    - Direcciones completas
-    - Patrones compilados
-    - Orden correcto
-    - Código limpio
-    - Sin conflictos
+    - NER (spaCy es_core_news_lg) para PERSONAS / UBICACIONES / INSTITUCIONES:
+      detecta entidades aunque NO esten en ningun diccionario y etiqueta cada
+      actor por separado -> resuelve relatos con multiples actores.
+    - Regex para datos ESTRUCTURADOS (RUT, email, telefono, ID, direccion).
+    - Una sola pasada por offsets con resolucion de solapamientos por prioridad
+      (elimina la fragilidad del multi-pass y del orden de reemplazos).
+    - Fallback 100% regex si spaCy no esta disponible (nunca crashea).
+    - NUEVO: Tracking de actores unicos y analisis de confianza NER.
 
-    ✅ MEJORAS FASE 2 (7 NUEVAS):
-    1. NOMBRES - Detección contextual (sin capitalización)
-    2. INSTITUCIONES - Colegios, liceos, universidades
-    3. NÚMEROS DE IDENTIFICACIÓN - Pasaporte, licencia, cédula
-    4. CONTEXTO INTELIGENTE - Palabras clave activadoras
-    5. NOMBRES DE ESTABLECIMIENTOS - Detectar por nombre
-    6. DIMINUTIVOS Y VARIANTES - Juanito, Carlitos, Marianita
-    7. VALIDACIÓN DE RUT - Dígito verificador
+    API publica (compatible con el backend Flask):
+        __init__(confidence_mode='standard')
+        self.counter  -> person, location, institution, rut, id_number,
+                         email, phone, address, unique_actors
+        self.mappings -> {texto_original: {'tag': etiqueta, 'type': tipo, 'confidence': score}}
+        self.actors_by_type -> {'person': {actor1, actor2}, 'location': {...}, ...}
+        anonymize_narrative(text), anonymize_dataframe(df, columns_to_anonymize),
+        get_summary()
     """
 
-    def __init__(self, confidence_mode='standard'):
-        """
-        Inicializa el anonimizador con modo de confianza especificado.
+    _TAG_PRIORITY = {
+        '<rut>': 0, '<id>': 0, '<correo>': 0, '<telefono>': 0,
+        '<direccion>': 1, '<nombre>': 2, '<institucion>': 3, '<ubicacion>': 4,
+    }
+    _CONFIDENCE = {'conservative': 0.95, 'standard': 0.90, 'aggressive': 0.80}
 
-        confidence_mode (str):
-            - 'conservative' (0.95): Solo detecta con muy alta confianza
-            - 'standard' (0.90): Balance entre detección y precisión (DEFAULT)
-            - 'aggressive' (0.80): Máxima detección, tolera más falsos positivos
-        """
+    # Etiquetas NER de spaCy -> (tag, counter_key)
+    _NER_MAP = {
+        'PER': ('<nombre>', 'person'),
+        'PERSON': ('<nombre>', 'person'),
+        'LOC': ('<ubicacion>', 'location'),
+        'GPE': ('<ubicacion>', 'location'),
+        'ORG': ('<institucion>', 'institution'),
+    }
+
+    def __init__(self, confidence_mode='standard'):
         self.counter = {}
         self.mappings = {}
-        self.confidence_mode = confidence_mode
-
-        # Umbrales de confianza por modo
-        self.confidence_thresholds = {
-            'conservative': 0.95,
-            'standard': 0.90,
-            'aggressive': 0.80,
-        }
-        self.min_confidence = self.confidence_thresholds.get(confidence_mode, 0.90)
-
-        # Confianza de cada tipo de dato (0-1)
-        self.element_confidence = {
-            'rut': 0.95,                    # Muy alta - patrón muy específico
-            'email': 0.95,                  # Patrón muy específico
-            'phone': 0.85,                  # Puede haber variaciones
-            'address': 0.80,                # Complicado, más falsos positivos
-            'location': 0.90,               # Comunas/ciudades bien conocidas
-            'institution': 0.90,            # Instituciones conocidas
-            'person_context': 0.85,         # Más confiable con contexto
-            'person_capitalized': 0.75,     # Bajo - muchos falsos positivos
-        }
-
+        self.actors_by_type = {'person': set(), 'location': set(), 'institution': set()}
+        self.confidence_mode = confidence_mode if confidence_mode in self._CONFIDENCE else 'standard'
         self.compiled_patterns = self._compile_patterns()
         self._init_data_lists()
+        self._nlp = _load_nlp()
 
+    # ------------------------------------------------------------------ #
     def _init_data_lists(self):
-        """✅ Inicializa listas de detección"""
-
-        # UBICACIONES
+        """Diccionarios de respaldo (complementan al NER, no lo reemplazan)."""
         self.locations = {
-            'arica y parinacota', 'arica', 'tarapacá', 'antofagasta', 'atacama',
-            'coquimbo', 'valparaíso', 'región de valparaíso',
-            'libertador general bernardo o\'higgins', 'región del libertador',
-            'maule', 'región del maule', 'ñuble', 'región de ñuble',
-            'biobío', 'región del biobío', 'la araucanía', 'región de la araucanía',
-            'los ríos', 'región de los ríos', 'los lagos', 'región de los lagos',
-            'aysén', 'región de aysén', 'magallanes', 'región de magallanes',
-            'metropolitana', 'región metropolitana', 'rm',
-            'santiago', 'independencia', 'conchalí', 'huechuraba', 'recoleta',
-            'providencia', 'vitacura', 'lo barnechea', 'las condes', 'ñuñoa',
-            'la reina', 'macul', 'peñalolén', 'la florida', 'san joaquín',
-            'la granja', 'la pintana', 'san ramón', 'san miguel', 'la cisterna',
-            'el bosque', 'pedro aguirre cerda', 'lo espejo', 'estación central',
-            'cerrillos', 'maipú', 'lo prado', 'pudahuel', 'cerro navia',
+            'arica y parinacota', 'arica', 'tarapaca', 'antofagasta', 'atacama',
+            'coquimbo', 'valparaiso', 'maule', 'nuble', 'biobio', 'la araucania',
+            'los rios', 'los lagos', 'aysen', 'magallanes',
+            'metropolitana', 'region metropolitana',
+            'santiago', 'independencia', 'conchali', 'huechuraba', 'recoleta',
+            'providencia', 'vitacura', 'lo barnechea', 'las condes', 'nunoa',
+            'la reina', 'macul', 'penalolen', 'la florida', 'san joaquin',
+            'la granja', 'la pintana', 'san ramon', 'san miguel', 'la cisterna',
+            'el bosque', 'pedro aguirre cerda', 'lo espejo', 'estacion central',
+            'cerrillos', 'maipu', 'lo prado', 'pudahuel', 'cerro navia',
             'renca', 'quilicura', 'colina', 'lampa', 'tiltil',
-            'puente alto', 'san josé de maipo', 'pirque', 'san bernardo',
-            'buin', 'paine', 'calera de tango', 'maría pinto', 'curacaví',
-            'talagante', 'peñaflor', 'el monte', 'padre hurtado',
-            'valparaíso', 'viña del mar', 'villa alemana', 'quilpué',
-            'concepción', 'talcahuano', 'temuco', 'valdivia', 'osorno', 'puerto montt',
-            'la serena', 'coquimbo', 'ovalle', 'los ángeles', 'talca', 'curicó',
-            'linares', 'chillan', 'chillán', 'antofagasta', 'calama', 'copiapó',
-            'iquique', 'punta arenas', 'stgo', 'stgo.', 'viña', 'vdm',
-            'esmeralda',
+            'puente alto', 'san jose de maipo', 'pirque', 'san bernardo',
+            'buin', 'paine', 'calera de tango', 'curacavi',
+            'talagante', 'penaflor', 'el monte', 'padre hurtado',
+            'vina del mar', 'villa alemana', 'quilpue',
+            'concepcion', 'talcahuano', 'temuco', 'valdivia', 'osorno', 'puerto montt',
+            'la serena', 'ovalle', 'los angeles', 'talca', 'curico',
+            'linares', 'chillan', 'calama', 'copiapo',
+            'iquique', 'punta arenas', 'coihueco',
         }
-
-        # NOMBRES COMUNES + DIMINUTIVOS
-        self.common_names = {
-            'sofía', 'valentina', 'isabella', 'camila', 'valeria', 'martina',
-            'alexia', 'lucia', 'lucía', 'emma', 'victoria', 'elena', 'gabriela', 'daniela',
-            'maría', 'amelia', 'ana', 'catalina', 'julieta', 'aitana',
-            'ximena', 'luna', 'sara', 'adriana', 'paula', 'emilia', 'carla', 'clara',
-            'miranda', 'rocío', 'laura', 'andrea', 'zoe', 'alba', 'olivia',
-            'eva', 'pia', 'lea', 'iris', 'liv', 'lis', 'río', 'dar', 'lía',
-            # DIMINUTIVOS FEMENINOS
-            'sofíta', 'sofi', 'valentinita', 'camilita', 'marianita', 'fernandita',
-            'judita', 'judit', 'gabrielita', 'sandrita', 'sandri', 'paulita',
-            'carlita', 'clarita', 'rocinita', 'laurita', 'andrecita', 'andreita',
-            'isabela', 'isabelita', 'alexita',
-            # Nombres masculinos
-            'mateo', 'santiago', 'sebastián', 'leonardo', 'matías', 'amadeo',
-            'martín', 'alejandro', 'lucas', 'nicolás', 'samuel',
-            'benjamín', 'benjamin', 'thiago', 'emiliano', 'diego', 'tomás',
-            'joaquín', 'gabriel', 'david', 'miguel', 'isaac', 'pablo',
-            'ángel', 'adrián', 'bruno', 'juan', 'josé', 'gonzalo',
-            'maximiliano', 'salvador', 'franco', 'andrés', 'rodrigo', 'enzo',
-            'leo', 'pio', 'ivo', 'luis', 'joel', 'ari', 'aldo', 'roi', 'rui', 'omar',
-            'damian', 'damián', 'dylan', 'cristopher', 'christopher',
-            # Nombres EXTRANJEROS comunes (nuevo)
-            'john', 'james', 'michael', 'robert', 'william', 'charles', 'george',
-            'pierre', 'jacques', 'louis', 'françois', 'jean', 'paul',
-            'giuseppe', 'mario', 'giovanni', 'antonio', 'franco',
-            # Nombres MAPUCHE (nuevo)
-            'quilapan', 'huenupillan', 'llaipén', 'lonco', 'reuque',
-            'elicura', 'kilapan', 'paillamán', 'coñuecar', 'licanantú',
-            # Apodos LOCALES/COLOQUIALES (nuevo)
-            'pelao', 'gordo', 'flaco', 'chino', 'rubio', 'negro', 'cano', 'crespo',
-            # DIMINUTIVOS MASCULINOS
-            'juanito', 'juanín', 'carlitos', 'carla', 'carlín', 'pablito', 'pedrito',
-            'santiaguito', 'santi', 'carmelito', 'pepito', 'jorgito', 'lupito',
-            'matecito', 'matecito', 'lunita',
-            # Apellidos (con y sin acentos)
-            'pérez', 'perez', 'garcía', 'garcia', 'hernández', 'hernandez',
-            'martínez', 'martinez', 'barría', 'barria', 'muñoz', 'munoz',
-            'rojas', 'díaz', 'diaz', 'soto', 'contreras', 'silva', 'sepúlveda', 'sepulveda',
-            'morales', 'rodríguez', 'rodriguez', 'lopez', 'lόpez', 'fuentes',
-            'torres', 'araya', 'flores', 'espinoza', 'valenzuela', 'castillo',
-            'reyes', 'gutiérrez', 'gutierrez', 'castro', 'pizarro', 'álvarez', 'alvarez',
-            'vásquez', 'vasquez', 'sánchez', 'sanchez', 'fernández', 'fernandez',
-            'ramírez', 'ramirez', 'carrasco', 'gómez', 'gomez', 'cortés', 'cortes',
-            'herrera', 'núñez', 'nunez', 'jara', 'vergara', 'rivera', 'figueroa',
-            'riquelme', 'miranda', 'bravo', 'vera', 'molina', 'vega', 'campos',
-            'huertas', 'huerta', 'espinosa', 'espinosa', 'salazar', 'salazar',
-            'meza', 'mesa', 'fuente', 'fuentes', 'parra', 'paredes',
-            'pereira', 'echeverría', 'echeverria',
-        }
-
-        # MEJORA #2: INSTITUCIONES EDUCACIONALES
         self.institutions = {
-            'liceo central', 'colegio andrés bello', 'colegio pedro de valdivia',
-            'colegio los andes', 'liceo de aplicación', 'instituto nacional',
-            'colegio inmaculada concepción', 'colegio teresiano', 'liceo experimental',
-            'colegio francés', 'colegio alemán', 'colegio saint george',
-            'colegio charles darwin', 'colegio las condes', 'colegio pumé',
-            'colegio montecristo', 'liceo bicentenario', 'escuela básica municipal',
-            'colegio particular', 'liceo público', 'colegio subvencionado',
-            'universidad de chile', 'universidad católica', 'universidad de concepción',
-            'universidad técnica', 'universidad de valparaíso', 'universidad austral',
-            'inacap', 'duoc', 'cftp', 'instituto profesional',
-            'ministerio de educación', 'superintendencia de educación',
-            'seremi de educación', 'departamento de educación', 'daem', 'dirección educacional',
-        }
-
-        # MEJORA #6: DIMINUTIVOS ADICIONALES (mapa) + APODOS COMUNES
-        self.diminutives_map = {
-            # Diminutivos tradicionales
-            'juanito': 'juan', 'juanín': 'juan', 'juanillo': 'juan',
-            'carlitos': 'carlos', 'carlín': 'carlos', 'carla': 'carlos',
-            'pablito': 'pablo', 'pablinche': 'pablo', 'pablillo': 'pablo',
-            'pedrito': 'pedro', 'pedrinche': 'pedro', 'pedrucho': 'pedro',
-            'jorgito': 'jorge', 'jorguito': 'jorge',
-            'santiaguito': 'santiago', 'santi': 'santiago', 'santy': 'santiago',
-            'marianita': 'mariana', 'marianilla': 'mariana',
-            'sofíta': 'sofía', 'sofi': 'sofía', 'sofín': 'sofía',
-            'camilita': 'camila', 'cami': 'camila', 'camilón': 'camila',
-            'fernandita': 'fernanda', 'fernandinche': 'fernanda',
-            'luisito': 'luis', 'luisillo': 'luis',
-            'gabrielito': 'gabriel', 'gabrielillo': 'gabriel',
-            'davidito': 'david', 'davidillo': 'david',
-            'miguelito': 'miguel', 'miguelón': 'miguel',
-            'franciscito': 'francisco', 'pancho': 'francisco', 'panchito': 'francisco',
-            'robertito': 'roberto', 'robertillo': 'roberto',
-            'enriqueta': 'enrique', 'enriquillo': 'enrique', 'quique': 'enrique',
-            # Apodos comunes (nuevo)
-            'pepe': 'josé', 'paquito': 'francisco', 'rafa': 'rafael',
-            'toni': 'antonio', 'lolo': 'lorenzo', 'chano': 'santiago',
-            'fer': 'fernando', 'dani': 'daniel', 'tere': 'teresa',
-            'lupe': 'guadalupe', 'manolo': 'manuel', 'paco': 'francisco',
-            'lili': 'liliana', 'katy': 'catalina', 'vicky': 'victoria',
-            'gaby': 'gabriela', 'laura': 'laurencia', 'toño': 'antonio',
-            'feo': 'filiberto', 'guille': 'guillermo', 'rico': 'ricardo',
-            'richi': 'ricardo', 'beto': 'alberto', 'nano': 'ignacio',
-            'memo': 'guillermo', 'coco': 'alejandro', 'mimi': 'maría',
-            'gema': 'gemma', 'checa': 'teresa', 'xica': 'francisca',
+            'liceo central', 'colegio andres bello', 'colegio pedro de valdivia',
+            'liceo de aplicacion', 'instituto nacional', 'liceo experimental',
+            'colegio aleman', 'colegio saint george', 'liceo bicentenario',
+            'escuela basica municipal', 'universidad de chile',
+            'universidad catolica', 'universidad de concepcion',
+            'universidad de valparaiso', 'universidad austral',
+            'inacap', 'duoc', 'instituto profesional',
+            'ministerio de educacion', 'superintendencia de educacion',
+            'seremi de educacion', 'departamento de educacion', 'daem',
         }
 
     def _compile_patterns(self) -> Dict:
-        """✅ COMPILAR PATRONES UNA SOLA VEZ"""
+        """Regex para datos ESTRUCTURADOS (precisos y confiables)."""
         return {
-            # RUT CHILENO
             'rut': [
-                re.compile(r'\d{1,2}\.\d{3}\.\d{3,6}-[0-9kK]'),  # 17.741.137-K (estándar)
-                re.compile(r'\d{1,2}\.\d{4,6}-[0-9kK]'),        # 17.741137-K (un punto)
-                re.compile(r'\d{8,11}-[0-9kK]'),                # 17741137-K (sin puntos)
-                re.compile(r'\d{2}\s\d{3}\s\d{3}-[0-9kK]'),     # 17 741 137-K (espacios)
-                re.compile(r'(?<![0-9])\d{7,9}(?![0-9kK])'),    # 17741137 (solo dígitos)
-                re.compile(r'\b\d{7}-[0-9kK]\b'),               # 1741137-K (7 dígitos)
-                re.compile(r'\b\d{1,2}\s\d{3}\s\d{3}-[0-9kK]\b'),  # 17 741 137-K (límites palabra)
+                re.compile(r'\d{1,2}\.\d{3}\.\d{3,6}-[0-9kK]'),
+                re.compile(r'\d{1,2}\.\d{4,6}-[0-9kK]'),
+                re.compile(r'\d{7,11}-[0-9kK]'),
+                re.compile(r'\d{2}\s\d{3}\s\d{3}-[0-9kK]'),
             ],
-
-            # MEJORA #3: NÚMEROS DE IDENTIFICACIÓN
             'id_numbers': [
-                re.compile(r'(?:pasaporte|passport|psp|ps|pp)\s*:?\s*[a-z]?\d{6,9}', re.IGNORECASE),
-                re.compile(r'(?:licencia|lic\.|lic)\s*:?\s*\d{6,8}', re.IGNORECASE),
-                re.compile(r'(?:cédula|cedula|carne)\s*:?\s*\d{7,10}', re.IGNORECASE),
+                re.compile(r'(?:pasaporte|passport|psp)\s*:?\s*[a-z]?\d{6,9}', re.IGNORECASE),
+                re.compile(r'(?:licencia|lic\.?)\s*:?\s*\d{6,8}', re.IGNORECASE),
+                re.compile(r'(?:c[eé]dula|carne)\s*:?\s*\d{7,10}', re.IGNORECASE),
                 re.compile(r'(?:documento|doc|nro)\s*:?\s*\d{6,12}', re.IGNORECASE),
             ],
-
-            # EMAIL
             'email': [
                 re.compile(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'),
-                re.compile(r'[a-z0-9]+@(supereduc|mineduc|agcm|registrocivil|bcn|gob)\.cl'),
             ],
-
-            # TELÉFONO
             'phone': [
                 re.compile(r'\+56\s?-?\s?9\s?-?\d{4}\s?-?\d{4}'),
                 re.compile(r'\+56\s?-?\s?2\s?-?\d{4}\s?-?\d{4}'),
                 re.compile(r'\+56\s?-?\s?\d{2}\s?-?\d{4}\s?-?\d{4}'),
                 re.compile(r'\b9\s?\d{4}\s?\d{4}\b'),
-                re.compile(r'\(?2\)?\s?\d{4}\s?\d{4}'),
                 re.compile(r'\b22\s?\d{4}\s?\d{4}\b'),
-                re.compile(r'\b32\s?\d{4}\s?\d{4}\b'),
-                re.compile(r'\b41\s?\d{4}\s?\d{4}\b'),
                 re.compile(r'\+56\s?\d{8,9}'),
                 re.compile(r'\b9\d{8}\b'),
             ],
-
-            # DIRECCIÓN - MEJORA v3.2: Direcciones complejas
             'address': [
-                # Patrones BÁSICOS (originales)
-                re.compile(r'\b(?:Calle|Avenida|Av\.|Pasaje|Pje\.|Cra\.|Carrera|Camino|Dpto|Depto|Piso|Apto|Apartamento|Bloque|Lote|Sector)\s+[A-Za-z0-9\s\.#-]+(?:\s+\d+[A-Za-z0-9\s\.,#-]*)?', re.IGNORECASE),
-                re.compile(r'\b(?:Pje|Dpto|Apto)\s*\d+\b', re.IGNORECASE),
-                re.compile(r'\bkm\s?\d+(?:\s?[a-z])?\b', re.IGNORECASE),
-                re.compile(r'\b(?:Manzana|Mz)\s?[A-Z0-9]+\b', re.IGNORECASE),
-                re.compile(r'\b(?:Lote|Sitio)\s?\d+\b', re.IGNORECASE),
-
-                # NUEVOS: Carreteras complejas
-                re.compile(r'\b(?:Carretera|Camino|Ruta)\s+(?:a|hacia|al?)\s+[A-Za-záéíóúñ\s]+(?:,?\s*km\s?\d+(?:\.\d+)?)?', re.IGNORECASE),
-
-                # NUEVOS: Hijuelas y terrenos
-                re.compile(r'\b(?:Hijuela|Parcela|Terreno|Propiedad)\s+[#°]?\s*\d+(?:[A-Z])?', re.IGNORECASE),
-
-                # NUEVOS: Coordenadas GPS (formato: -33.437, -70.673)
-                re.compile(r'-?\d{1,2}\.\d{3,6},?\s*-?\d{1,2}\.\d{3,6}', re.IGNORECASE),
-            ],
-
-            # MEJORA #4: PALABRAS CLAVE CONTEXTUALES
-            'context_markers': {
-                'person_indicators': [
-                    r'(?i:dice|mencion|reporta|indic|según|segun|afirma|declara|testigo)\s+([\w]+(?:\s[\w]+)*)',
-                    r'(?i:el|la)\s+(?i:estudiante|apoderado|apoderada|profesor|profesora|director|directora|inspector|inspectora|jefe|jefa|niño|niña|alumno|alumna)\s+([\w]+(?:\s[\w]+)*)',
-                    r'(?i:llamad[oa]|nombrad[oa]|conocid[oa]|identificad[oa])\s+(?i:como\s+)?([\w]+(?:\s[\w]+)*)',
-                    r'(?i:su)\s+(?i:hijo|hija|hermano|hermana|padre|madre|abuelo|abuela|primo|prima|tío|tía)\s+([\w]+(?:\s[\w]+)*)',
-                    r'(?i:compañero|compañera)\s+([\w]+(?:\s[\w]+)*)',
-                    r'(?i:amigo|amiga|colega|colega)\s+([\w]+(?:\s[\w]+)*)',
-                ],
-            },
-
-            # MEJORA NUEVA: Apodos entre paréntesis y alias
-            'nicknames_in_parentheses': [
-                r'\b([A-Za-záéíóúñ]+)\s*\(([a-záéíóúñ\s]+)\)',  # "Juan (Juanito)" o "josé (pepe)"
-            ],
-            'alias_keywords': [
-                r'(?i:apodo|alias|conocid[oa]\s+como)\s+([a-záéíóúñ]+)',  # "apodo Pepe", "alias Juan"
+                re.compile(r'\b(?:Calle|Avenida|Av\.|Pasaje|Pje\.|Camino|Depto|Dpto|Piso|Bloque|Lote)\s+[A-Za-z0-9ÁÉÍÓÚÑáéíóúñ\s\.#-]+?(?:\s+\d+[A-Za-z0-9]*)?(?=\s*(?:,|\.|;|$))', re.IGNORECASE),
+                re.compile(r'\bkm\s?\d+(?:\.\d+)?\b', re.IGNORECASE),
+                re.compile(r'-?\d{1,2}\.\d{3,6},\s*-?\d{1,2}\.\d{3,6}'),
             ],
         }
 
     def _normalize_text(self, value: str) -> str:
-        """Normaliza texto"""
         if not isinstance(value, str):
             return ''
         return value.lower().strip()
 
-    def _validate_confidence(self, element_type: str, is_match: bool = True, extra_confidence: float = 0.0) -> bool:
-        """
-        MEJORA v3.2: Valida si una detección debe incluirse según nivel de confianza.
+    def get_confidence_mode(self) -> str:
+        return self.confidence_mode
 
-        Args:
-            element_type (str): tipo de elemento ('rut', 'email', 'person_capitalized', etc.)
-            is_match (bool): si el patrón coincidió
-            extra_confidence (float): confianza adicional si se cumplen condiciones extra (ej: nombre en lista)
+    # ------------------------------------------------------------------ #
+    # Recoleccion de spans (start, end, tag, counter_key)
+    # ------------------------------------------------------------------ #
+    def _structured_spans(self, text: str) -> List:
+        spans = []
+        for p in self.compiled_patterns['rut']:
+            for m in p.finditer(text):
+                spans.append((m.start(), m.end(), '<rut>', 'rut'))
+        for p in self.compiled_patterns['id_numbers']:
+            for m in p.finditer(text):
+                spans.append((m.start(), m.end(), '<id>', 'id_number'))
+        for p in self.compiled_patterns['email']:
+            for m in p.finditer(text):
+                spans.append((m.start(), m.end(), '<correo>', 'email'))
+        for p in self.compiled_patterns['phone']:
+            for m in p.finditer(text):
+                chunk = m.group(0)
+                # Evitar confundir anios (1900-2099) con telefonos.
+                if re.fullmatch(r'\s*(?:19|20)\d{2}\s*', chunk):
+                    continue
+                spans.append((m.start(), m.end(), '<telefono>', 'phone'))
+        for p in self.compiled_patterns['address']:
+            for m in p.finditer(text):
+                spans.append((m.start(), m.end(), '<direccion>', 'address'))
+        return spans
 
-        Returns:
-            bool: True si la confianza es suficiente para incluir el elemento
-        """
-        if not is_match:
-            return False
+    def _ner_spans(self, doc) -> List:
+        """Extrae spans de NER con tracking de actores y confianza."""
+        spans = []
+        if doc is None:
+            return spans
 
-        # Obtener confianza del elemento (default 0.85 si no existe)
-        confidence = self.element_confidence.get(element_type, 0.85)
+        # Umbral de confianza segun modo
+        confidence_threshold = self._CONFIDENCE.get(self.confidence_mode, 0.90)
 
-        # Agregar confianza extra si se cumplen condiciones adicionales
-        confidence = min(confidence + extra_confidence, 0.99)
+        for ent in doc.ents:
+            mapped = self._NER_MAP.get(ent.label_)
+            if not mapped:
+                continue
+            tag, key = mapped
+            label = ent.text.strip()
+            if len(label) < 2:
+                continue
 
-        # Comparar con umbral mínimo del modo actual
-        return confidence >= self.min_confidence
+            # Calcular confianza: largos de entidad muy cortos < 0.7
+            entity_length = len(label.split())
+            base_confidence = min(0.95, 0.70 + (entity_length * 0.08))
 
-    def _validate_rut(self, rut_str: str) -> bool:
-        """
-        MEJORA #7: Valida RUT chileno usando dígito verificador
-        Retorna True si el RUT está en formato válido o es convertible
-        """
-        # Limpiar RUT
-        rut_clean = re.sub(r'[^0-9kK]', '', rut_str.upper())
+            # En modo conservative, solo aceptar muy altas confianzas
+            if self.confidence_mode == 'conservative' and base_confidence < 0.92:
+                continue
 
-        if len(rut_clean) < 7:
-            return False
+            # Registrar actor unico
+            if key in self.actors_by_type:
+                self.actors_by_type[key].add(label.lower())
 
-        try:
-            # Separar número y verificador
-            numero_str = rut_clean[:-1]
-            verificador = rut_clean[-1]
+            spans.append((ent.start_char, ent.end_char, tag, key, base_confidence))
 
-            # Debe ser un número válido
-            numero = int(numero_str)
+        return spans
 
-            # Calcular dígito verificador esperado
-            suma = 0
-            multiplicador = 2
+    def _dictionary_spans(self, text: str) -> List:
+        """Respaldo: ubicaciones e instituciones conocidas (texto sin acento-sensible)."""
+        spans = []
+        for institution in sorted(self.institutions, key=len, reverse=True):
+            for m in re.finditer(r'\b' + re.escape(institution) + r'\b', text, re.IGNORECASE):
+                spans.append((m.start(), m.end(), '<institucion>', 'institution'))
+        for location in sorted(self.locations, key=len, reverse=True):
+            for m in re.finditer(r'\b' + re.escape(location) + r'\b', text, re.IGNORECASE):
+                spans.append((m.start(), m.end(), '<ubicacion>', 'location'))
+        return spans
 
-            for digito in numero_str[::-1]:
-                suma += int(digito) * multiplicador
-                multiplicador += 1
-                if multiplicador > 7:
-                    multiplicador = 2
+    def _fallback_name_spans(self, text: str) -> List:
+        """Deteccion de nombres por regex (solo si NO hay modelo NER)."""
+        spans = []
+        # Nombres capitalizados de 2+ palabras: "Juan Perez", "Maria Jose Soto".
+        pat = re.compile(
+            r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})\b'
+        )
+        stop = {'El', 'La', 'Los', 'Las', 'Un', 'Una', 'Se', 'Su', 'En', 'De', 'Del',
+                'Por', 'Con', 'Para', 'Que', 'Como', 'Fecha', 'Region', 'Comuna'}
+        for m in pat.finditer(text):
+            first = m.group(1).split()[0]
+            if first in stop:
+                continue
+            spans.append((m.start(1), m.end(1), '<nombre>', 'person'))
+        # MAYUSCULAS sostenidas: "JUAN PEREZ".
+        for m in re.finditer(r'\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})\b', text):
+            spans.append((m.start(1), m.end(1), '<nombre>', 'person'))
+        return spans
 
-            residuo = suma % 11
-            digito_esperado = 11 - residuo
-
-            if digito_esperado == 11:
-                digito_esperado = 0
-            elif digito_esperado == 10:
-                digito_esperado = 'K'
-            else:
-                digito_esperado = str(digito_esperado)
-
-            # Comparar - retorna True si coincide
-            return str(verificador) == str(digito_esperado)
-        except:
-            # Si no puedo validar, aceptar igual (para datos de prueba)
-            return True
-
-    def _is_name_like(self, text: str) -> bool:
-        """Verifica si parece un nombre"""
-        if not isinstance(text, str) or len(text.strip()) < 2:
-            return False
-
-        text = text.strip()
-        text_lower = self._normalize_text(text)
-
-        # Excluir palabras muy comunes que NO son nombres
-        excluded_words = {'de', 'del', 'la', 'lo', 'los', 'las', 'el', 'un', 'una', 'unos', 'unas',
-                         'que', 'es', 'en', 'por', 'para', 'con', 'sin', 'sobre', 'fue', 'sea',
-                         'sido', 'siendo', 'están', 'estaba', 'estaban', 'realizado', 'realizada',
-                         'falsas', 'falso', 'asiste', 'existe', 'existe', 'hizo', 'hace', 'han',
-                         'ha', 'he', 'iba', 'ir', 'era', 'son', 'soy', 'eres', 'dijo', 'dice'}
-        if text_lower in excluded_words:
-            return False
-
-        if text_lower in self.common_names:
-            return True
-
-        # Revisar diminutivos
-        if text_lower in self.diminutives_map:
-            return True
-
-        parts = text.split()
-        if len(parts) >= 2:
-            # Para nombres de múltiples palabras: verificar patrón
-            first_part_lower = self._normalize_text(parts[0])
-
-            # MEJORA v3.2: Nombres compuestos
-            # "José María", "Juan Carlos" - ambas partes deben ser nombres
-            all_parts_names = True
-            valid_names_count = 0
-            for part in parts:
-                part_lower = self._normalize_text(part)
-                if part_lower in self.common_names or part_lower in self.diminutives_map:
-                    valid_names_count += 1
-                elif part.lower() not in ['de', 'del', 'y', 'e']:  # Conectores permitidos
-                    all_parts_names = False
-                    break
-
-            # Si al menos 2 partes son nombres válidos, considerar como nombre compuesto
-            if valid_names_count >= 2:
-                return True
-
-            # Si solo la primera es nombre, también válido (Juan García)
-            if first_part_lower in self.common_names or first_part_lower in self.diminutives_map:
-                return True
-
-            # O si todas las partes capitalizadas y al menos 2 son nombres
-            if all_parts_names and valid_names_count >= 1:
-                return valid_names_count >= 2
-
-            return False
-
-        # Para palabras simples: NO aceptar solo por estar capitalizadas
-        # Esto evita falsos positivos en textos con MAYÚSCULAS SOSTENIDAS
-        # Solo aceptar si realmente está en common_names
-        return False
-
-    def anonymize_narrative(self, text: str) -> str:
-        """Anonimiza relatos - VERSIÓN MEJORADA v3"""
-        if not isinstance(text, str) or text.strip() == '':
+    # ------------------------------------------------------------------ #
+    # Merge por prioridad + reemplazo por offsets (una sola pasada)
+    # ------------------------------------------------------------------ #
+    def _merge_and_replace(self, text: str, spans: List) -> str:
+        if not spans:
             return text
 
+        # Normalizar spans: algunos tienen confianza (5 elementos), otros no (4 elementos)
+        normalized_spans = []
+        for span in spans:
+            if len(span) == 5:
+                s, e, tag, key, confidence = span
+                normalized_spans.append((s, e, tag, key, confidence))
+            else:
+                s, e, tag, key = span
+                normalized_spans.append((s, e, tag, key, 1.0))  # confianza maxima por defecto
+
+        # Orden: prioridad asc, luego posicion, luego span mas largo primero.
+        normalized_spans.sort(key=lambda s: (self._TAG_PRIORITY.get(s[2], 9), s[0], -(s[1] - s[0])))
+        accepted = []
+        for s, e, tag, key, conf in normalized_spans:
+            if any(s < ae and e > as_ for as_, ae, _, _, _ in accepted):
+                continue  # solapa con uno ya aceptado de mayor prioridad
+            accepted.append((s, e, tag, key, conf))
+
+        # Reemplazar de derecha a izquierda para conservar offsets.
+        accepted.sort(key=lambda s: s[0], reverse=True)
         result = text
-
-        # ========== 1. RUT ==========
-        for pattern in self.compiled_patterns['rut']:
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                rut = match.group().strip()
-                # Validar contexto (no es artículo, página, etc.)
-                before = result[max(0, match.start()-30):match.start()].lower()
-
-                # Palabras que excluyen RUT
-                exclude_keywords = r'(artículo|página|fig|table|número|nº|n°|año|age|fecha)'
-                # Palabras que confirman RUT
-                rut_keywords = r'(rut|cedula|cédula|documento|identificación|id:?)'
-
-                # Si tiene palabra clave de RUT, es definitivamente RUT
-                has_rut_keyword = bool(re.search(rut_keywords, before))
-                # Si tiene palabra de exclusión y NO tiene palabra de RUT, saltar
-                has_exclude_keyword = bool(re.search(exclude_keywords, before))
-
-                # Detectar si es RUT: tiene palabra clave OR (no tiene exclusión Y tiene 8+ dígitos)
-                is_valid_rut = has_rut_keyword or (not has_exclude_keyword and len(rut.replace('.', '').replace('-', '').replace(' ', '')) >= 8)
-
-                # MEJORA v3.2: Validar confianza según modo
-                if self._validate_confidence('rut', is_valid_rut):
-                    result = result[:match.start()] + '<rut>' + result[match.end():]
-                    self.counter['rut'] = self.counter.get('rut', 0) + 1
-
-        # ========== 2. NÚMEROS DE IDENTIFICACIÓN ==========
-        for pattern in self.compiled_patterns['id_numbers']:
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                result = result[:match.start()] + '<id>' + result[match.end():]
-                self.counter['id_number'] = self.counter.get('id_number', 0) + 1
-
-        # ========== 3. EMAILS ==========
-        for pattern in self.compiled_patterns['email']:
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                # MEJORA v3.2: Validar confianza según modo
-                if self._validate_confidence('email', True):
-                    result = result[:match.start()] + '<correo>' + result[match.end():]
-                    self.counter['email'] = self.counter.get('email', 0) + 1
-
-        # ========== 4. TELÉFONOS ==========
-        for pattern in self.compiled_patterns['phone']:
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                phone = match.group().strip()
-                if not re.search(r'(19|20)\d{2}', phone):
-                    result = result[:match.start()] + '<telefono>' + result[match.end():]
-                    self.counter['phone'] = self.counter.get('phone', 0) + 1
-
-        # ========== 5. DIRECCIONES ==========
-        for pattern in self.compiled_patterns['address']:
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                result = result[:match.start()] + '<direccion>' + result[match.end():]
-                self.counter['address'] = self.counter.get('address', 0) + 1
-
-        # ========== 6. INSTITUCIONES ==========
-        for institution in sorted(self.institutions, key=len, reverse=True):
-            pattern = re.compile(r'\b' + re.escape(institution) + r'\b', re.IGNORECASE)
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                result = result[:match.start()] + '<institucion>' + result[match.end():]
-                self.counter['institution'] = self.counter.get('institution', 0) + 1
-
-        # ========== 7. UBICACIONES ==========
-        for location in sorted(self.locations, key=len, reverse=True):
-            if len(location) < 2:
-                continue
-            pattern = re.compile(r'\b' + re.escape(location) + r'\b', re.IGNORECASE)
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                result = result[:match.start()] + '<ubicacion>' + result[match.end():]
-                self.counter['location'] = self.counter.get('location', 0) + 1
-
-        # ========== 7.5. APODOS ENTRE PARÉNTESIS (NUEVO) ==========
-        # Detecta patrones como "Juan (Juanito)" o "josé (pepe)"
-        for pattern_str in self.compiled_patterns['nicknames_in_parentheses']:
-            pattern = re.compile(pattern_str, re.UNICODE)
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                try:
-                    name1 = match.group(1).strip()
-                    name2 = match.group(2).strip()
-
-                    # Contar nombres válidos a reemplazar
-                    valid_names = 0
-                    if self._is_name_like(name1):
-                        valid_names += 1
-                    if self._is_name_like(name2):
-                        valid_names += 1
-
-                    # Si ambos son nombres válidos, reemplazar todo el match
-                    if valid_names == 2:
-                        # Reemplazar "Juan (Juanito)" con "<nombre> (<nombre>)"
-                        replacement = '<nombre> (<nombre>)'
-                        result = result[:match.start()] + replacement + result[match.end():]
-                        self.counter['person'] = self.counter.get('person', 0) + 2
-                    elif valid_names == 1:
-                        # Si solo uno es nombre, reemplazarlo
-                        if self._is_name_like(name1):
-                            result = result[:match.start(1)] + '<nombre>' + result[match.end(1):]
-                        else:
-                            # Reemplazar solo el apodo (name2)
-                            result = result[:match.start(2)] + '<nombre>' + result[match.end(2):]
-                        self.counter['person'] = self.counter.get('person', 0) + 1
-                except:
-                    pass
-
-        # ========== 8. NOMBRES CON CONTEXTO ==========
-        # MEJORA #4 + #5: Detectar nombres por contexto
-        for pattern_str in self.compiled_patterns['context_markers']['person_indicators']:
-            pattern = re.compile(pattern_str, re.UNICODE)  # re.UNICODE para soportar caracteres acentuados
-            matches = list(pattern.finditer(result))
-            for match in reversed(matches):
-                try:
-                    name = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
-
-                    # Limpiar: tomar solo palabras que parecen nombres
-                    words = name.split()
-                    cleaned_words = []
-                    for word in words:
-                        word_lower = self._normalize_text(word)
-                        # Incluir palabra si está en nombres comunes o parece un nombre
-                        if word_lower in self.common_names or (len(word) >= 3 and word[0].isupper()):
-                            cleaned_words.append(word)
-                        else:
-                            # Si no parece nombre, parar (evita capturar "fue", "es", etc.)
-                            break
-
-                    cleaned_name = ' '.join(cleaned_words)
-                    if self._is_name_like(cleaned_name):
-                        # Reemplazar solo el nombre limpio, no todo lo capturado
-                        cleaned_end = match.start(1) + len(cleaned_name)
-                        result = result[:match.start(1)] + '<nombre>' + result[cleaned_end:]
-                        self.counter['person'] = self.counter.get('person', 0) + 1
-                except:
-                    pass
-
-        # ========== 9. NOMBRES CAPITALIZADOS ==========
-        # Detecta: Nombre Capitalizado O Nombre con apellidos en minúsculas O NOMBRES EN MAYÚSCULAS SOSTENIDAS
-        # MEJORA v3.2: Incluir letras inglesas (A-Za-z) además de españolas
-        name_pattern = re.compile(
-            r'\b[A-Za-záéíóúñ][a-záéíóúña-z]+(?:\s+[A-Za-záéíóúñ][a-záéíóúña-z]+)*\b', re.UNICODE
-        )
-        # Patrón alternativo: Nombre Capitalizado + apellidos en minúsculas
-        name_pattern_with_lowercase = re.compile(
-            r'\b[A-Za-záéíóúñ][a-záéíóúña-z]+(?:\s+[a-záéíóúña-z][a-záéíóúña-z]+)+\b', re.UNICODE
-        )
-        # Patrón nuevo: NOMBRES EN MAYÚSCULAS SOSTENIDAS (palabras que están en common_names)
-        # Primero se buscará palabra por palabra dentro de textos en MAYÚSCULAS
-        name_pattern_uppercase = None  # Se procesará manualmente
-        # Buscar con ambos patrones, priorizando el patrón con minúsculas (más largo)
-        matches_pattern1 = list(name_pattern.finditer(result))
-        matches_pattern2 = list(name_pattern_with_lowercase.finditer(result))
-        matches_pattern_upper = []  # Se procesará manualmente después
-
-        # Combinar matches, prefiriendo los del patrón 2 (con minúsculas) si se superponen
-        all_matches = []
-        for m2 in matches_pattern2:
-            all_matches.append(m2)
-
-        for m1 in matches_pattern1:
-            # Verificar si este match está completamente contenido en alguno del patrón 2
-            is_contained = any(m2.start() <= m1.start() and m1.end() <= m2.end()
-                              for m2 in matches_pattern2)
-            if not is_contained:
-                all_matches.append(m1)
-
-        # Agregar búsqueda manual de nombres en MAYÚSCULAS SOSTENIDAS
-        # Buscar palabras en MAYÚSCULAS que estén en common_names
-        for word in self.common_names:
-            # Convertir nombre a MAYÚSCULAS para búsqueda
-            word_upper = word.upper()
-            # Buscar la palabra en el texto, solo si está entre límites de palabra
-            pattern_word = re.compile(r'\b' + re.escape(word_upper) + r'\b', re.IGNORECASE)
-            for m in pattern_word.finditer(result):
-                # Verificar que no esté ya contenido en otros matches
-                is_contained = any((m_other.start() <= m.start() and m.end() <= m_other.end())
-                                  for m_other in matches_pattern1 + matches_pattern2)
-                if not is_contained:
-                    all_matches.append(m)
-
-        # Ordenar de atrás hacia adelante para evitar cambios de índices
-        matches = sorted(all_matches, key=lambda m: m.start(), reverse=True)
-
-        for match in matches:
-            candidate = match.group().strip()
-
-            # Para MAYÚSCULAS SOSTENIDAS, tomar solo la secuencia de nombres válidos
-            # Ej: "MATÍAS BENJAMIN AMADEO AGUAYO" → validar palabra por palabra
-            is_uppercase_sostenida = candidate.isupper()
-            if is_uppercase_sostenida:
-                # Dividir en palabras y tomar solo las que son nombres
-                words = candidate.split()
-                valid_words = []
-                for word in words:
-                    word_lower = self._normalize_text(word)
-                    # Si es nombre válido (está en common_names o diminutivos), agregarlo
-                    if word_lower in self.common_names or word_lower in self.diminutives_map:
-                        valid_words.append(word)
-                    else:
-                        # Si encontramos una palabra que NO es nombre, detener
-                        break
-
-                if len(valid_words) >= 2:  # Al menos 2 nombres válidos
-                    # Reemplazar solo los nombres válidos
-                    nombres_str = ' '.join(valid_words)
-                    # Encontrar el índice del final de los nombres válidos en el texto
-                    # Y reemplazar solo esa parte
-                    result_text = ' '.join(['<nombre>'] * len(valid_words))
-                    # Buscar el match dentro del resultado
-                    nombres_start = result.find(nombres_str, max(0, match.start() - 20))
-                    if nombres_start >= 0:
-                        result = result[:nombres_start] + result_text + result[nombres_start + len(nombres_str):]
-                        self.counter['person'] = self.counter.get('person', 0) + len(valid_words)
-                        continue
-
-            # Para casos normales (capitalizados, no MAYÚSCULAS SOSTENIDAS)
-            if self._is_name_like(candidate):
-                excluded = {
-                    'educación', 'región', 'provincia', 'ciudad', 'comuna',
-                    'denuncia', 'conducta', 'colegio', 'liceo', 'escuela',
-                    'alumno', 'alumna', 'profesor', 'docente', 'director',
-                    'información', 'dirección', 'actividad', 'caso', 'hecho',
-                }
-                candidate_lower = self._normalize_text(candidate)
-                if candidate_lower not in excluded:
-                    # MEJORA v3.2: Validar confianza para nombres capitalizados
-                    # Si el nombre está en common_names, agregar 0.15 de confianza (total 0.90)
-                    extra_confidence = 0.15 if candidate_lower in self.common_names else 0.0
-
-                    if self._validate_confidence('person_capitalized', True, extra_confidence):
-                        result = result[:match.start()] + '<nombre>' + result[match.end():]
-                        self.counter['person'] = self.counter.get('person', 0) + 1
-
+        for s, e, tag, key, conf in accepted:
+            original = text[s:e]
+            result = result[:s] + tag + result[e:]
+            self.counter[key] = self.counter.get(key, 0) + 1
+            # Guardar mappings con metadata
+            if isinstance(self.mappings.get(original), dict):
+                self.mappings[original]['occurrences'] = self.mappings[original].get('occurrences', 1) + 1
+            else:
+                self.mappings[original] = {'tag': tag, 'type': key, 'confidence': conf}
         return result
 
-    def anonymize_dataframe(self, df: pd.DataFrame, columns_to_anonymize: List[str] = None) -> pd.DataFrame:
-        """Anonimiza columnas"""
-        df_copy = df.copy()
+    # ------------------------------------------------------------------ #
+    # API publica
+    # ------------------------------------------------------------------ #
+    def _anonymize_with_doc(self, text: str, doc) -> str:
+        if not isinstance(text, str) or text.strip() == '':
+            return text
+        spans = self._structured_spans(text)
+        if doc is not None:
+            spans += self._ner_spans(doc)
+        else:
+            spans += self._fallback_name_spans(text)
+        # El diccionario de respaldo se usa en standard/aggressive.
+        if self.confidence_mode in ('standard', 'aggressive'):
+            spans += self._dictionary_spans(text)
+        return self._merge_and_replace(text, spans)
 
+    def anonymize_narrative(self, text: str) -> str:
+        if not isinstance(text, str) or text.strip() == '':
+            return text
+        doc = self._nlp(text) if self._nlp is not None else None
+        return self._anonymize_with_doc(text, doc)
+
+    def anonymize_dataframe(self, df: pd.DataFrame, columns_to_anonymize: List[str] = None) -> pd.DataFrame:
+        df_copy = df.copy()
         if columns_to_anonymize is None:
             columns_to_anonymize = df.columns.tolist()
 
         narrative_keywords = [
-            'relato', 'descripción', 'narrative', 'texto', 'historia', 'denuncia',
-            'detalle', 'comentario', 'observación', 'hecho', 'caso', 'reporte',
-            'narración', 'detalles', 'documento', 'contenido'
+            'relato', 'descripcion', 'descripción', 'narrative', 'texto', 'historia',
+            'denuncia', 'detalle', 'comentario', 'observacion', 'observación', 'hecho',
+            'caso', 'reporte', 'narracion', 'narración', 'detalles', 'documento', 'contenido'
         ]
 
         for col in columns_to_anonymize:
             if col not in df_copy.columns:
                 continue
-
             col_lower = self._normalize_text(col)
-            is_narrative = any(kw in col_lower for kw in narrative_keywords)
-
-            if not is_narrative:
+            if not any(kw in col_lower for kw in narrative_keywords):
                 continue
 
             print(f"[ANON] Procesando: {col} ({len(df_copy)} filas)", flush=True)
+            texts = df_copy[col].astype(str).tolist()
 
-            new_col_name = f"{col}_Anonimizado"
+            # NER en lote (mucho mas rapido que doc por doc).
+            if self._nlp is not None:
+                docs = list(self._nlp.pipe(texts, batch_size=64))
+            else:
+                docs = [None] * len(texts)
+
             values = []
-
-            for index, value in enumerate(df_copy[col].astype(str), start=1):
+            total = len(texts)
+            for index, (value, doc) in enumerate(zip(texts, docs), start=1):
                 if value.strip() and value != 'nan':
-                    anonimized = self.anonymize_narrative(value)
+                    values.append(self._anonymize_with_doc(value, doc))
                 else:
-                    anonimized = value
+                    values.append(value)
+                if index % 25 == 0 or index == total:
+                    print(f"[ANON] {col}: {index}/{total} filas", flush=True)
 
-                values.append(anonimized)
-
-                if index % 25 == 0 or index == len(df_copy):
-                    print(f"[ANON] {col}: {index}/{len(df_copy)} filas", flush=True)
-
-            df_copy[new_col_name] = values
+            df_copy[f"{col}_Anonimizado"] = values
             print(f"[OK] Completado: {col}", flush=True)
 
         return df_copy
 
-    def get_confidence_mode(self) -> str:
-        """Retorna el modo de confianza actual"""
-        return self.confidence_mode
-
     def get_summary(self) -> Dict:
-        """Retorna resumen"""
+        """Resumen de anonimizacion incluyendo actores unicos y confianza."""
+        unique_persons = len(self.actors_by_type.get('person', set()))
+        unique_locations = len(self.actors_by_type.get('location', set()))
+        unique_institutions = len(self.actors_by_type.get('institution', set()))
+        total_unique_actors = unique_persons + unique_locations + unique_institutions
+
         return {
             'personas': self.counter.get('person', 0),
             'ubicaciones': self.counter.get('location', 0),
@@ -720,20 +370,26 @@ class DataAnonymizer:
             'emails': self.counter.get('email', 0),
             'telefonos': self.counter.get('phone', 0),
             'direcciones': self.counter.get('address', 0),
-            'total': sum(self.counter.values())
+            'total': sum(self.counter.values()),
+            # NUEVO: Actores unicos (importante para narrativas multi-actor)
+            'personas_unicas': unique_persons,
+            'ubicaciones_unicas': unique_locations,
+            'instituciones_unicas': unique_institutions,
+            'actores_unicos_total': total_unique_actors,
+            # NUEVO: Tipo de modelo NER usado
+            'modelo_ner': _NLP_MODEL_NAME or 'regex-fallback',
+            'modo_confianza': self.confidence_mode,
         }
 
 
 def anonymize_file(input_file: str, output_file: str = None, columns: List[str] = None):
-    """Función principal"""
+    """Funcion principal CLI."""
     input_path = Path(input_file)
-
     if not input_path.exists():
         print(f"[ERROR] Archivo no encontrado: {input_file}")
         return
 
     print(f"[*] Leyendo: {input_file}")
-
     try:
         if input_path.suffix.lower() == '.csv':
             df = pd.read_csv(input_file, encoding='utf-8')
@@ -750,21 +406,11 @@ def anonymize_file(input_file: str, output_file: str = None, columns: List[str] 
     print(f"[INFO] Filas: {len(df)}")
 
     anonymizer = DataAnonymizer()
-
-    if columns:
-        cols_to_anonymize = columns
-        print(f"[TARGET] Anonimizando: {cols_to_anonymize}")
-    else:
-        cols_to_anonymize = df.columns.tolist()
-        print(f"[TARGET] Anonimizando todas las columnas")
-
-    df_anonymized = anonymizer.anonymize_dataframe(df, cols_to_anonymize)
+    cols = columns if columns else df.columns.tolist()
+    df_anonymized = anonymizer.anonymize_dataframe(df, cols)
 
     if output_file is None:
-        name = input_path.stem
-        ext = input_path.suffix
-        output_file = input_path.parent / f"{name}_anonymized{ext}"
-
+        output_file = input_path.parent / f"{input_path.stem}_anonymized{input_path.suffix}"
     output_path = Path(output_file)
 
     try:
@@ -777,19 +423,15 @@ def anonymize_file(input_file: str, output_file: str = None, columns: List[str] 
         print(f"[ERROR] No se pudo guardar: {e}")
         return
 
-    summary = anonymizer.get_summary()
-    print(f"\n[SUMMARY]")
-    print(f"  Filas: {len(df)}")
-    print(f"  Detectado:")
-    print(f"  - Nombres: {summary['personas']}")
-    print(f"  - Instituciones: {summary['instituciones']}")
-    print(f"  - Ubicaciones: {summary['ubicaciones']}")
-    print(f"  - RUTs: {summary['ruts']}")
-    print(f"  - IDs/Pasaportes: {summary['ids']}")
-    print(f"  - Correos: {summary['emails']}")
-    print(f"  - Teléfonos: {summary['telefonos']}")
-    print(f"  - Direcciones: {summary['direcciones']}")
-    print(f"  TOTAL: {summary['total']} elementos")
+    s = anonymizer.get_summary()
+    print(f"\n[SUMMARY] Modelo: {s['modelo_ner']} | Confianza: {s['modo_confianza']}")
+    print(f"  Ocurrencias - Nombres: {s['personas']} | Ubicaciones: {s['ubicaciones']} | "
+          f"Instituciones: {s['instituciones']}")
+    print(f"  Actores Unicos - Personas: {s['personas_unicas']} | Ubicaciones: {s['ubicaciones_unicas']} | "
+          f"Instituciones: {s['instituciones_unicas']} | TOTAL: {s['actores_unicos_total']}")
+    print(f"  Datos estructurados - RUTs: {s['ruts']} | IDs: {s['ids']} | Correos: {s['emails']} | "
+          f"Telefonos: {s['telefonos']} | Direcciones: {s['direcciones']}")
+    print(f"  TOTAL ELEMENTOS ANONIMIZADOS: {s['total']}")
 
 
 if __name__ == "__main__":
