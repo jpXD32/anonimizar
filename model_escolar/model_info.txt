@@ -1,0 +1,4 @@
+Custom NER model for school narratives
+Base model: es_core_news_sm
+Training data: 30 examples
+Labels: PERSON, LOC, ORG, SCHOOL_ID

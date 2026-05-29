@@ -24,7 +24,7 @@ _DICT_CACHE = {}  # Cache de diccionarios compilados
 
 
 def _load_nlp():
-    """Carga el mejor modelo NER en espanol disponible (lg > md > sm)."""
+    """Carga el mejor modelo NER disponible (prioritario: custom escolar > lg > md > sm)."""
     global _NLP, _NLP_LOADED, _NLP_MODEL_NAME
     if _NLP_LOADED:
         return _NLP
@@ -35,7 +35,21 @@ def _load_nlp():
         logger.warning("spaCy no disponible, usando fallback regex")
         _NLP = None
         return _NLP
+
     disable = ['tagger', 'parser', 'lemmatizer', 'attribute_ruler', 'morphologizer']
+
+    # MEJORA: Intentar cargar modelo custom escolar primero
+    custom_model_path = Path(__file__).parent / "model_escolar"
+    if custom_model_path.exists():
+        try:
+            _NLP = spacy.load(str(custom_model_path), disable=disable)
+            _NLP_MODEL_NAME = "model_escolar (fine-tuned)"
+            logger.info("Modelo NER cargado: model_escolar (fine-tuned para narrativas escolares)")
+            return _NLP
+        except Exception as e:
+            logger.debug(f"No se pudo cargar modelo custom: {e}")
+
+    # Fallback a modelos pre-entrenados estándar
     for model_name in ('es_core_news_lg', 'es_core_news_md', 'es_core_news_sm'):
         try:
             _NLP = spacy.load(model_name, disable=disable)
@@ -45,6 +59,7 @@ def _load_nlp():
         except Exception as e:
             logger.debug(f"No se pudo cargar {model_name}: {e}")
             continue
+
     _NLP = None
     return _NLP
 
