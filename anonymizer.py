@@ -1,7 +1,16 @@
 import pandas as pd
 import re
+import json
+import psutil
+import unicodedata
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Set, Tuple, Optional
+from functools import lru_cache
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Carga perezosa del modelo spaCy (singleton a nivel de modulo).
@@ -11,6 +20,7 @@ from typing import Dict, List
 _NLP = None
 _NLP_LOADED = False
 _NLP_MODEL_NAME = None
+_DICT_CACHE = {}  # Cache de diccionarios compilados
 
 
 def _load_nlp():
@@ -22,6 +32,7 @@ def _load_nlp():
     try:
         import spacy
     except Exception:
+        logger.warning("spaCy no disponible, usando fallback regex")
         _NLP = None
         return _NLP
     disable = ['tagger', 'parser', 'lemmatizer', 'attribute_ruler', 'morphologizer']
@@ -29,16 +40,86 @@ def _load_nlp():
         try:
             _NLP = spacy.load(model_name, disable=disable)
             _NLP_MODEL_NAME = model_name
+            logger.info(f"Modelo NER cargado: {model_name}")
             return _NLP
-        except Exception:
+        except Exception as e:
+            logger.debug(f"No se pudo cargar {model_name}: {e}")
             continue
     _NLP = None
     return _NLP
 
 
+# ---------------------------------------------------------------------------
+# Funciones de validación y normalización
+# ---------------------------------------------------------------------------
+
+def validate_rut(rut_str: str) -> bool:
+    """Valida RUT chileno con dígito verificador."""
+    rut_str = rut_str.replace('.', '').replace('-', '').strip()
+    if len(rut_str) < 8:
+        return False
+    try:
+        rut_num = int(rut_str[:-1])
+        dv = rut_str[-1].upper()
+
+        # Calcular dígito verificador
+        mult = 2
+        suma = 0
+        for d in str(rut_num)[::-1]:
+            suma += int(d) * mult
+            mult += 1
+            if mult > 7:
+                mult = 2
+
+        dv_calc = 11 - (suma % 11)
+        if dv_calc == 11:
+            dv_calc = 0
+        elif dv_calc == 10:
+            dv_calc = 'K'
+        else:
+            dv_calc = str(dv_calc)
+
+        return str(dv_calc) == dv
+    except:
+        return False
+
+
+def normalize_unicode(text: str) -> str:
+    """Normaliza unicode a NFC (composición canónica)."""
+    if not isinstance(text, str):
+        return ''
+    return unicodedata.normalize('NFC', text)
+
+
+@lru_cache(maxsize=1000)
+def _normalize_for_lookup(text: str) -> str:
+    """Normaliza texto para búsqueda en diccionarios (cached)."""
+    return text.lower().strip()
+
+
+def _load_custom_dictionaries(dict_file: Optional[str] = None) -> Dict[str, Set[str]]:
+    """Carga diccionarios desde JSON externo (si existe)."""
+    default_dicts = {
+        'locations': set(),
+        'institutions': set(),
+    }
+
+    if dict_file and Path(dict_file).exists():
+        try:
+            with open(dict_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                default_dicts['locations'] = set(data.get('locations', []))
+                default_dicts['institutions'] = set(data.get('institutions', []))
+                logger.info(f"Diccionarios cargados desde {dict_file}")
+        except Exception as e:
+            logger.warning(f"No se pudo cargar {dict_file}: {e}")
+
+    return default_dicts
+
+
 class DataAnonymizer:
     """
-    Anonimizador HIBRIDO v5 (NER + Regex + Multi-Actor).
+    Anonimizador HIBRIDO v6 (NER + Regex + Multi-Actor + Optimizaciones).
 
     - NER (spaCy es_core_news_lg) para PERSONAS / UBICACIONES / INSTITUCIONES:
       detecta entidades aunque NO esten en ningun diccionario y etiqueta cada
@@ -47,10 +128,14 @@ class DataAnonymizer:
     - Una sola pasada por offsets con resolucion de solapamientos por prioridad
       (elimina la fragilidad del multi-pass y del orden de reemplazos).
     - Fallback 100% regex si spaCy no esta disponible (nunca crashea).
-    - NUEVO: Tracking de actores unicos y analisis de confianza NER.
+    - Validación de RUT con dígito verificador.
+    - Diccionarios pre-compilados para performance.
+    - Logging/debug detallado.
+    - Caché de resultados.
+    - Batch size adaptativo según memoria.
 
     API publica (compatible con el backend Flask):
-        __init__(confidence_mode='standard')
+        __init__(confidence_mode='standard', debug=False, dict_file=None)
         self.counter  -> person, location, institution, rut, id_number,
                          email, phone, address, unique_actors
         self.mappings -> {texto_original: {'tag': etiqueta, 'type': tipo, 'confidence': score}}
@@ -74,19 +159,29 @@ class DataAnonymizer:
         'ORG': ('<institucion>', 'institution'),
     }
 
-    def __init__(self, confidence_mode='standard'):
+    def __init__(self, confidence_mode='standard', debug=False, dict_file=None):
         self.counter = {}
         self.mappings = {}
         self.actors_by_type = {'person': set(), 'location': set(), 'institution': set()}
         self.confidence_mode = confidence_mode if confidence_mode in self._CONFIDENCE else 'standard'
+        self.debug = debug
         self.compiled_patterns = self._compile_patterns()
-        self._init_data_lists()
+        self._init_data_lists(dict_file)
         self._nlp = _load_nlp()
+        self._result_cache = {}  # Caché para textos ya procesados
+        self._calculate_batch_size()  # Calcular batch size adaptativo
+
+        if self.debug:
+            logger.info(f"Modo debug activado | Confianza: {self.confidence_mode}")
 
     # ------------------------------------------------------------------ #
-    def _init_data_lists(self):
+    def _init_data_lists(self, dict_file=None):
         """Diccionarios de respaldo (complementan al NER, no lo reemplazan)."""
-        self.locations = {
+        # MEJORA: Cargar diccionarios configurables desde JSON si existen
+        custom_dicts = _load_custom_dictionaries(dict_file)
+
+        # Diccionarios por defecto
+        default_locations = {
             'arica y parinacota', 'arica', 'tarapaca', 'antofagasta', 'atacama',
             'coquimbo', 'valparaiso', 'maule', 'nuble', 'biobio', 'la araucania',
             'los rios', 'los lagos', 'aysen', 'magallanes',
@@ -107,7 +202,8 @@ class DataAnonymizer:
             'linares', 'chillan', 'calama', 'copiapo',
             'iquique', 'punta arenas', 'coihueco',
         }
-        self.institutions = {
+
+        default_institutions = {
             'liceo central', 'colegio andres bello', 'colegio pedro de valdivia',
             'liceo de aplicacion', 'instituto nacional', 'liceo experimental',
             'colegio aleman', 'colegio saint george', 'liceo bicentenario',
@@ -118,6 +214,21 @@ class DataAnonymizer:
             'ministerio de educacion', 'superintendencia de educacion',
             'seremi de educacion', 'departamento de educacion', 'daem',
         }
+
+        # Fusionar diccionarios por defecto con custom (custom tiene prioridad)
+        self.locations = default_locations | custom_dicts.get('locations', set())
+        self.institutions = default_institutions | custom_dicts.get('institutions', set())
+
+        # MEJORA: Pre-compilar patrones regex para diccionarios (evita recompilar)
+        self._location_patterns = self._compile_dict_patterns(sorted(self.locations, key=len, reverse=True))
+        self._institution_patterns = self._compile_dict_patterns(sorted(self.institutions, key=len, reverse=True))
+
+        if self.debug:
+            logger.info(f"Diccionarios cargados: {len(self.locations)} ubicaciones, {len(self.institutions)} instituciones")
+
+    def _compile_dict_patterns(self, terms: List[str]) -> List[re.Pattern]:
+        """Pre-compila patrones regex para términos de diccionario."""
+        return [re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE) for term in terms]
 
     def _compile_patterns(self) -> Dict:
         """Regex para datos ESTRUCTURADOS (precisos y confiables)."""
@@ -156,7 +267,23 @@ class DataAnonymizer:
     def _normalize_text(self, value: str) -> str:
         if not isinstance(value, str):
             return ''
-        return value.lower().strip()
+        # MEJORA: Normalizar unicode también
+        return normalize_unicode(value).lower().strip()
+
+    def _calculate_batch_size(self):
+        """MEJORA: Calcula batch size adaptativo según memoria disponible."""
+        try:
+            memory_percent = psutil.virtual_memory().percent
+            if memory_percent > 80:
+                self.batch_size = 16  # Memoria alta, usar batch pequeño
+            elif memory_percent > 60:
+                self.batch_size = 32
+            else:
+                self.batch_size = 64  # Batch normal
+            if self.debug:
+                logger.info(f"Batch size adaptativo: {self.batch_size} (memoria: {memory_percent}%)")
+        except:
+            self.batch_size = 64  # Fallback si psutil no funciona
 
     def get_confidence_mode(self) -> str:
         return self.confidence_mode
@@ -168,27 +295,39 @@ class DataAnonymizer:
         spans = []
         for p in self.compiled_patterns['rut']:
             for m in p.finditer(text):
-                spans.append((m.start(), m.end(), '<rut>', 'rut'))
+                rut_text = m.group(0)
+                # MEJORA: Validar RUT con dígito verificador
+                if validate_rut(rut_text):
+                    spans.append((m.start(), m.end(), '<rut>', 'rut', 1.0))
+                    if self.debug:
+                        logger.debug(f"RUT válido detectado: {rut_text}")
+                elif self.debug:
+                    logger.debug(f"RUT inválido (verificación fallida): {rut_text}")
+
         for p in self.compiled_patterns['id_numbers']:
             for m in p.finditer(text):
-                spans.append((m.start(), m.end(), '<id>', 'id_number'))
+                spans.append((m.start(), m.end(), '<id>', 'id_number', 1.0))
+
         for p in self.compiled_patterns['email']:
             for m in p.finditer(text):
-                spans.append((m.start(), m.end(), '<correo>', 'email'))
+                spans.append((m.start(), m.end(), '<correo>', 'email', 1.0))
+
         for p in self.compiled_patterns['phone']:
             for m in p.finditer(text):
                 chunk = m.group(0)
                 # Evitar confundir anios (1900-2099) con telefonos.
                 if re.fullmatch(r'\s*(?:19|20)\d{2}\s*', chunk):
                     continue
-                spans.append((m.start(), m.end(), '<telefono>', 'phone'))
+                spans.append((m.start(), m.end(), '<telefono>', 'phone', 1.0))
+
         for p in self.compiled_patterns['address']:
             for m in p.finditer(text):
-                spans.append((m.start(), m.end(), '<direccion>', 'address'))
+                spans.append((m.start(), m.end(), '<direccion>', 'address', 1.0))
+
         return spans
 
     def _ner_spans(self, doc) -> List:
-        """Extrae spans de NER con tracking de actores y confianza."""
+        """Extrae spans de NER con tracking de actores, confianza mejorada y logging."""
         spans = []
         if doc is None:
             return spans
@@ -205,12 +344,18 @@ class DataAnonymizer:
             if len(label) < 2:
                 continue
 
-            # Calcular confianza: largos de entidad muy cortos < 0.7
+            # MEJORA: Heurística mejorada de confianza
             entity_length = len(label.split())
-            base_confidence = min(0.95, 0.70 + (entity_length * 0.08))
+            # Base: multi-palabra es más confiable
+            base_confidence = min(0.98, 0.75 + (entity_length * 0.06))
+            # Ajuste por modelo (lg es mejor que md/sm)
+            if _NLP_MODEL_NAME == 'es_core_news_lg':
+                base_confidence = min(0.98, base_confidence + 0.02)
 
             # En modo conservative, solo aceptar muy altas confianzas
             if self.confidence_mode == 'conservative' and base_confidence < 0.92:
+                if self.debug:
+                    logger.debug(f"Entidad rechazada (baja confianza): {label} ({base_confidence:.2f})")
                 continue
 
             # Registrar actor unico
@@ -219,36 +364,58 @@ class DataAnonymizer:
 
             spans.append((ent.start_char, ent.end_char, tag, key, base_confidence))
 
+            if self.debug:
+                logger.debug(f"NER detectado: {label} ({ent.label_}) - confianza: {base_confidence:.2f}")
+
         return spans
 
     def _dictionary_spans(self, text: str) -> List:
-        """Respaldo: ubicaciones e instituciones conocidas (texto sin acento-sensible)."""
+        """MEJORA: Respaldo usando patrones pre-compilados (mucho más rápido)."""
         spans = []
-        for institution in sorted(self.institutions, key=len, reverse=True):
-            for m in re.finditer(r'\b' + re.escape(institution) + r'\b', text, re.IGNORECASE):
-                spans.append((m.start(), m.end(), '<institucion>', 'institution'))
-        for location in sorted(self.locations, key=len, reverse=True):
-            for m in re.finditer(r'\b' + re.escape(location) + r'\b', text, re.IGNORECASE):
-                spans.append((m.start(), m.end(), '<ubicacion>', 'location'))
+
+        # MEJORA: Usar patrones pre-compilados en lugar de compilar dinámicamente
+        for pattern in self._institution_patterns:
+            for m in pattern.finditer(text):
+                spans.append((m.start(), m.end(), '<institucion>', 'institution', 0.95))
+
+        for pattern in self._location_patterns:
+            for m in pattern.finditer(text):
+                spans.append((m.start(), m.end(), '<ubicacion>', 'location', 0.95))
+
         return spans
 
     def _fallback_name_spans(self, text: str) -> List:
-        """Deteccion de nombres por regex (solo si NO hay modelo NER)."""
+        """MEJORA: Detección mejorada de nombres (regex fallback)."""
         spans = []
-        # Nombres capitalizados de 2+ palabras: "Juan Perez", "Maria Jose Soto".
+
+        # MEJORA: Patrones mejorados para nombres
+        # 1. Nombres capitalizados de 2+ palabras: "Juan Perez", "Maria Jose Soto"
         pat = re.compile(
             r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,4})\b'
         )
-        stop = {'El', 'La', 'Los', 'Las', 'Un', 'Una', 'Se', 'Su', 'En', 'De', 'Del',
-                'Por', 'Con', 'Para', 'Que', 'Como', 'Fecha', 'Region', 'Comuna'}
+        # Lista mejorada de palabras que NO son nombres
+        stop = {
+            'El', 'La', 'Los', 'Las', 'Un', 'Una', 'Se', 'Su', 'En', 'De', 'Del',
+            'Por', 'Con', 'Para', 'Que', 'Como', 'Fecha', 'Region', 'Comuna',
+            'Señora', 'Señor', 'Sra', 'Sr', 'Srta', 'Apoderada', 'Apoderado',
+            'Alumna', 'Alumno', 'Estudiante', 'Profesor', 'Director', 'Directora'
+        }
+
         for m in pat.finditer(text):
             first = m.group(1).split()[0]
             if first in stop:
                 continue
-            spans.append((m.start(1), m.end(1), '<nombre>', 'person'))
-        # MAYUSCULAS sostenidas: "JUAN PEREZ".
+            spans.append((m.start(1), m.end(1), '<nombre>', 'person', 0.80))
+
+            if self.debug:
+                logger.debug(f"Nombre detectado (fallback): {m.group(1)}")
+
+        # 2. MAYUSCULAS sostenidas: "JUAN PEREZ" (menos confiable)
         for m in re.finditer(r'\b([A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})\b', text):
-            spans.append((m.start(1), m.end(1), '<nombre>', 'person'))
+            first = m.group(1).split()[0]
+            if first not in stop and len(m.group(1)) > 6:  # Debe ser suficientemente largo
+                spans.append((m.start(1), m.end(1), '<nombre>', 'person', 0.70))
+
         return spans
 
     # ------------------------------------------------------------------ #
@@ -313,6 +480,7 @@ class DataAnonymizer:
         return self._anonymize_with_doc(text, doc)
 
     def anonymize_dataframe(self, df: pd.DataFrame, columns_to_anonymize: List[str] = None) -> pd.DataFrame:
+        """MEJORA: Usa batch_size adaptativo y caché de resultados."""
         df_copy = df.copy()
         if columns_to_anonymize is None:
             columns_to_anonymize = df.columns.tolist()
@@ -330,12 +498,12 @@ class DataAnonymizer:
             if not any(kw in col_lower for kw in narrative_keywords):
                 continue
 
-            print(f"[ANON] Procesando: {col} ({len(df_copy)} filas)", flush=True)
+            logger.info(f"Procesando: {col} ({len(df_copy)} filas)")
             texts = df_copy[col].astype(str).tolist()
 
-            # NER en lote (mucho mas rapido que doc por doc).
+            # MEJORA: NER en lote con batch_size adaptativo
             if self._nlp is not None:
-                docs = list(self._nlp.pipe(texts, batch_size=64))
+                docs = list(self._nlp.pipe(texts, batch_size=self.batch_size))
             else:
                 docs = [None] * len(texts)
 
@@ -343,14 +511,26 @@ class DataAnonymizer:
             total = len(texts)
             for index, (value, doc) in enumerate(zip(texts, docs), start=1):
                 if value.strip() and value != 'nan':
-                    values.append(self._anonymize_with_doc(value, doc))
+                    # MEJORA: Usar caché para textos duplicados
+                    if value in self._result_cache:
+                        values.append(self._result_cache[value])
+                    else:
+                        result = self._anonymize_with_doc(value, doc)
+                        values.append(result)
+                        self._result_cache[value] = result
                 else:
                     values.append(value)
+
                 if index % 25 == 0 or index == total:
-                    print(f"[ANON] {col}: {index}/{total} filas", flush=True)
+                    logger.info(f"{col}: {index}/{total} filas")
 
             df_copy[f"{col}_Anonimizado"] = values
-            print(f"[OK] Completado: {col}", flush=True)
+            logger.info(f"Completado: {col}")
+
+            # Limpiar caché si es muy grande
+            if len(self._result_cache) > 10000:
+                self._result_cache.clear()
+                logger.info("Caché limpiado (> 10000 entradas)")
 
         return df_copy
 
@@ -382,30 +562,30 @@ class DataAnonymizer:
         }
 
 
-def anonymize_file(input_file: str, output_file: str = None, columns: List[str] = None):
-    """Funcion principal CLI."""
+def anonymize_file(input_file: str, output_file: str = None, columns: List[str] = None, debug=False, dict_file=None):
+    """MEJORA: Función principal CLI con logging y diccionarios configurables."""
     input_path = Path(input_file)
     if not input_path.exists():
-        print(f"[ERROR] Archivo no encontrado: {input_file}")
+        logger.error(f"Archivo no encontrado: {input_file}")
         return
 
-    print(f"[*] Leyendo: {input_file}")
+    logger.info(f"Leyendo: {input_file}")
     try:
         if input_path.suffix.lower() == '.csv':
             df = pd.read_csv(input_file, encoding='utf-8')
         elif input_path.suffix.lower() in ['.xlsx', '.xls']:
             df = pd.read_excel(input_file)
         else:
-            print(f"[ERROR] Formato no soportado: {input_path.suffix}")
+            logger.error(f"Formato no soportado: {input_path.suffix}")
             return
     except Exception as e:
-        print(f"[ERROR] No se pudo leer: {e}")
+        logger.error(f"No se pudo leer: {e}")
         return
 
-    print(f"[INFO] Columnas: {list(df.columns)}")
-    print(f"[INFO] Filas: {len(df)}")
+    logger.info(f"Columnas: {list(df.columns)} | Filas: {len(df)}")
 
-    anonymizer = DataAnonymizer()
+    # MEJORA: Pasar parámetros de debug y dict_file al anonymizer
+    anonymizer = DataAnonymizer(debug=debug, dict_file=dict_file)
     cols = columns if columns else df.columns.tolist()
     df_anonymized = anonymizer.anonymize_dataframe(df, cols)
 
@@ -418,25 +598,36 @@ def anonymize_file(input_file: str, output_file: str = None, columns: List[str] 
             df_anonymized.to_csv(output_file, index=False, encoding='utf-8')
         else:
             df_anonymized.to_excel(output_file, index=False)
-        print(f"[OK] Guardado: {output_file}")
+        logger.info(f"Guardado: {output_file}")
     except Exception as e:
-        print(f"[ERROR] No se pudo guardar: {e}")
+        logger.error(f"No se pudo guardar: {e}")
         return
 
     s = anonymizer.get_summary()
-    print(f"\n[SUMMARY] Modelo: {s['modelo_ner']} | Confianza: {s['modo_confianza']}")
-    print(f"  Ocurrencias - Nombres: {s['personas']} | Ubicaciones: {s['ubicaciones']} | "
+    logger.info(f"\n[SUMMARY] Modelo: {s['modelo_ner']} | Confianza: {s['modo_confianza']} | Batch: {anonymizer.batch_size}")
+    logger.info(f"  Ocurrencias - Nombres: {s['personas']} | Ubicaciones: {s['ubicaciones']} | "
           f"Instituciones: {s['instituciones']}")
-    print(f"  Actores Unicos - Personas: {s['personas_unicas']} | Ubicaciones: {s['ubicaciones_unicas']} | "
+    logger.info(f"  Actores Unicos - Personas: {s['personas_unicas']} | Ubicaciones: {s['ubicaciones_unicas']} | "
           f"Instituciones: {s['instituciones_unicas']} | TOTAL: {s['actores_unicos_total']}")
-    print(f"  Datos estructurados - RUTs: {s['ruts']} | IDs: {s['ids']} | Correos: {s['emails']} | "
+    logger.info(f"  Datos estructurados - RUTs: {s['ruts']} | IDs: {s['ids']} | Correos: {s['emails']} | "
           f"Telefonos: {s['telefonos']} | Direcciones: {s['direcciones']}")
-    print(f"  TOTAL ELEMENTOS ANONIMIZADOS: {s['total']}")
+    logger.info(f"  TOTAL ELEMENTOS ANONIMIZADOS: {s['total']}")
 
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print("Uso: python anonymizer.py <archivo>")
+        logger.error("Uso: python anonymizer.py <archivo> [--debug] [--dict-file <path>]")
         sys.exit(1)
-    anonymize_file(sys.argv[1])
+
+    input_file = sys.argv[1]
+    debug = '--debug' in sys.argv
+    dict_file = None
+
+    # Buscar --dict-file
+    if '--dict-file' in sys.argv:
+        idx = sys.argv.index('--dict-file')
+        if idx + 1 < len(sys.argv):
+            dict_file = sys.argv[idx + 1]
+
+    anonymize_file(input_file, debug=debug, dict_file=dict_file)
