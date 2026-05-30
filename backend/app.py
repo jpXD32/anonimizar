@@ -39,8 +39,8 @@ MAX_COLUMNS = int(os.environ.get('MAX_COLUMNS', '200'))
 MAX_CELLS = int(os.environ.get('MAX_CELLS', '2000000'))
 MAX_DOWNLOAD_ROWS = int(os.environ.get('MAX_DOWNLOAD_ROWS', '100000'))
 MAX_JSON_RESPONSE_ROWS = int(os.environ.get('MAX_JSON_RESPONSE_ROWS', '25000'))
-MAX_INLINE_RESPONSE_ROWS = int(os.environ.get('MAX_INLINE_RESPONSE_ROWS', '5000'))
-PREVIEW_RESPONSE_ROWS = int(os.environ.get('PREVIEW_RESPONSE_ROWS', '100'))
+MAX_INLINE_RESPONSE_ROWS = int(os.environ.get('MAX_INLINE_RESPONSE_ROWS', '100'))  # Reducido para manejar archivos grandes
+PREVIEW_RESPONSE_ROWS = int(os.environ.get('PREVIEW_RESPONSE_ROWS', '50'))  # Solo 50 filas de preview
 PROCESSING_TIMEOUT_SECONDS = int(os.environ.get('PROCESSING_TIMEOUT_SECONDS', '600'))
 RESULT_TTL_SECONDS = int(os.environ.get('RESULT_TTL_SECONDS', '3600'))
 
